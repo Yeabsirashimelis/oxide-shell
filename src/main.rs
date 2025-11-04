@@ -12,6 +12,12 @@ fn main() {
         print!("$ ");
         io::stdout().flush().unwrap();
         let _ = io::stdin().read_line(&mut command).unwrap();
+
+        if command.clone().is_empty() {
+            continue;
+        }
+
         repl(&command);
+        command.clear();
     }
 }
