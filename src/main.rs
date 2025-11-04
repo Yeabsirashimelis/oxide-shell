@@ -1,5 +1,6 @@
 #[allow(unused_imports)]
 use std::io::{self, Write};
+use std::process;
 
 use codecrafters_shell::shell::repl;
 
@@ -16,7 +17,13 @@ fn main() {
         if command.clone().is_empty() {
             continue;
         }
+        if &command.trim() == &"exit 0" {
+            process::exit(0);
+        }
 
+        if &command.trim() == &"exit 1" {
+            process::exit(1);
+        }
         repl(&command);
         command.clear();
     }
