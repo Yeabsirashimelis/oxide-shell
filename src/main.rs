@@ -6,7 +6,6 @@ fn main() {
     print!("$ ");
     io::stdout().flush().unwrap();
 
-    println!("please enter a command");
     let mut command = String::new();
 
     let _ = io::stdin().read_line(&mut command).unwrap();
