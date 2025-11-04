@@ -24,6 +24,18 @@ fn main() {
         if &command.trim() == &"exit 1" {
             process::exit(1);
         }
+
+        if command.trim().contains("echo") {
+            let parts: Vec<&str> = command.trim().split_whitespace().collect();
+
+            if let Some((first, content)) = parts.split_first() {
+                let content = content.join(" ");
+                println!("{}", content);
+            }
+            command.clear();
+
+            continue;
+        }
         repl(&command);
         command.clear();
     }
