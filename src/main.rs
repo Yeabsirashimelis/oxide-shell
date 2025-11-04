@@ -5,4 +5,13 @@ fn main() {
     // TODO: Uncomment the code below to pass the first stage
     print!("$ ");
     io::stdout().flush().unwrap();
+
+    println!("please enter a command");
+    let mut command = String::new();
+
+    let _ = io::stdin().read_line(&mut command).unwrap();
+ 
+    println!("{}: command not found", command.trim());
+
+
 }
