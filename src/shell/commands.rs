@@ -88,7 +88,7 @@ pub fn map_external_commands(command_map: &mut HashMap<String, CommandType>) {
 
     command_map.insert(
         "my_exe".to_string(),
-        CommandType::External("/tmp/bar/my_exe".to_string()),
+        CommandType::External("/tmp/baz/my_exe".to_string()),
     );
 }
 
