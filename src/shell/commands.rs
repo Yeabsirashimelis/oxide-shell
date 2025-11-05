@@ -71,11 +71,13 @@ pub fn map_external_commands(command_map: &mut HashMap<String, CommandType>) {
                                 }
 
                                 // Insert into HashMap if not already present
-                                command_map
-                                    .entry(file_name.split(".").collect::<Vec<_>>()[0].to_string())
-                                    .or_insert(CommandType::External(
-                                        file_path.to_string_lossy().to_string(),
-                                    ));
+                                if let Some(stem) = file_path.file_stem().and_then(|s| s.to_str()) {
+                                    command_map.entry(stem.to_string()).or_insert(
+                                        CommandType::External(
+                                            file_path.to_string_lossy().to_string(),
+                                        ),
+                                    );
+                                }
                             }
                         }
                     }
@@ -85,11 +87,6 @@ pub fn map_external_commands(command_map: &mut HashMap<String, CommandType>) {
     } else {
         eprintln!("Warning: PATH enviroment variable not found");
     }
-
-    command_map.insert(
-        "my_exe".to_string(),
-        CommandType::External("/tmp/baz/my_exe".to_string()),
-    );
 }
 
 fn load_cmd_and_description() -> HashMap<String, CommandType> {
