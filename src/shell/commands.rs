@@ -1,3 +1,4 @@
+use core::error;
 use std::{
     collections::HashMap,
     env, fs,
@@ -9,24 +10,26 @@ pub enum Command {
     Echo(String),
     Unknown(String),
     Type(String),
+    External(Vec<String>),
 }
 
 #[derive(Debug)]
-enum CommandType {
+pub enum CommandType {
     Builtin,
     Alias(String),
     Function(String),
     External(String),
 }
 
-fn load_cmd_and_description() -> HashMap<String, CommandType> {
-    let mut command_map: HashMap<String, CommandType> = HashMap::new();
-
-    // Builtin commands
+fn map_builtin_commands(command_map: &mut HashMap<String, CommandType>) {
+    //built in commands
     command_map.insert("echo".to_string(), CommandType::Builtin);
     command_map.insert("exit".to_string(), CommandType::Builtin);
     command_map.insert("type".to_string(), CommandType::Builtin);
+}
 
+pub fn map_external_commands(command_map: &mut HashMap<String, CommandType>) {
+    // external commands
     // Valid extensions for Windows
     #[cfg(windows)]
     let valid_extensions = ["exe", "bat", "cmd"];
@@ -84,17 +87,25 @@ fn load_cmd_and_description() -> HashMap<String, CommandType> {
                 }
             }
         }
+    } else {
+        eprintln!("Warning: PATH enviroment variable not found");
     }
 
     command_map.insert(
         "my_exe".to_string(),
         CommandType::External("/tmp/qux/my_exe".to_string()),
     );
+}
 
+fn load_cmd_and_description() -> HashMap<String, CommandType> {
+    let mut command_map: HashMap<String, CommandType> = HashMap::new();
+
+    map_builtin_commands(&mut command_map);
+    map_external_commands(&mut command_map);
     command_map
 }
 
-fn handle_type_command(cmd: String) {
+fn run_type_command(cmd: String) {
     let command_map = load_cmd_and_description();
 
     let cmd_description = command_map.get(&cmd);
@@ -102,8 +113,33 @@ fn handle_type_command(cmd: String) {
     match cmd_description {
         Option::Some(CommandType::Builtin) => println!("{} is a shell builtin", cmd),
         Option::Some(CommandType::External(path)) => println!("{} is {}", cmd, path),
-        _ => println!("{}: not found", cmd),
+        _ => eprintln!("{}: not found", cmd),
     }
+}
+
+fn run_external_command(args: Vec<String>) {
+    if args.is_empty() {
+        eprintln!("Error: no command provided");
+        return;
+    }
+    let (cmd, args) = args.split_first().unwrap();
+    println!("{}, {:?}", cmd, args);
+
+    let mut process = std::process::Command::new(cmd).args(args).spawn();
+
+    match process {
+        Result::Ok(mut process) => {
+            // wait the command to finish
+            if let Result::Err(error) = process.wait() {
+                eprintln!("Error waiting for process: {}", error)
+            }
+        }
+        Result::Err(error) => {
+            eprintln!("Failed to execute '{}': {}", cmd, error)
+        }
+    }
+
+    return;
 }
 
 pub fn handle_command(cmd: Command) {
@@ -112,7 +148,8 @@ pub fn handle_command(cmd: Command) {
             // handled in main loop
         }
         Command::Echo(text) => println!("{}", text),
-        Command::Type(cmd) => handle_type_command(cmd),
+        Command::Type(cmd) => run_type_command(cmd),
+        Command::External(args) => run_external_command(args),
         Command::Unknown(name) => println!("{}: command not found", name),
     }
 }
