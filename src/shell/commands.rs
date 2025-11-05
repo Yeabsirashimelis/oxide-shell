@@ -16,6 +16,13 @@ pub enum CommandType {
     External(String),
 }
 
+fn map_builtin_commands(command_map: &mut HashMap<String, CommandType>) {
+    //built in commands
+    command_map.insert("echo".to_string(), CommandType::Builtin);
+    command_map.insert("exit".to_string(), CommandType::Builtin);
+    command_map.insert("type".to_string(), CommandType::Builtin);
+}
+
 pub fn map_external_commands(command_map: &mut HashMap<String, CommandType>) {
     // external commands
     // Valid extensions for Windows
@@ -80,50 +87,23 @@ pub fn map_external_commands(command_map: &mut HashMap<String, CommandType>) {
     }
 }
 
-fn resolve_command(cmd: &str) -> Option<String> {
-    // Builtins first
-    let builtins = ["echo", "exit", "type"];
-    if builtins.contains(&cmd) {
-        return Some(cmd.to_string());
-    }
+fn load_cmd_and_description() -> HashMap<String, CommandType> {
+    let mut command_map: HashMap<String, CommandType> = HashMap::new();
 
-    // External commands
-    if let Ok(paths) = std::env::var("PATH") {
-        #[cfg(windows)]
-        let separator = ';';
-        #[cfg(not(windows))]
-        let separator = ':';
-
-        for dir in paths.split(separator) {
-            let path = std::path::Path::new(dir).join(cmd);
-
-            #[cfg(windows)]
-            let exts = ["", ".exe", ".bat", ".cmd"];
-
-            #[cfg(not(windows))]
-            let exts = [""]; // Unix just the file itself
-
-            for ext in exts {
-                let candidate = path.with_extension(ext.trim_start_matches('.'));
-                if candidate.is_file() {
-                    return Some(candidate.to_string_lossy().to_string());
-                }
-            }
-        }
-    }
-
-    None
+    map_builtin_commands(&mut command_map);
+    map_external_commands(&mut command_map);
+    command_map
 }
 
-fn run_type_command(cmd: &str) {
-    if let Some(path) = resolve_command(cmd) {
-        if ["echo", "exit", "type"].contains(&cmd) {
-            println!("{} is a shell builtin", cmd);
-        } else {
-            println!("{} is {}", cmd, path);
-        }
-    } else {
-        println!("{}: not found", cmd);
+fn run_type_command(cmd: String) {
+    let command_map = load_cmd_and_description();
+
+    let cmd_description = command_map.get(&cmd);
+
+    match cmd_description {
+        Option::Some(CommandType::Builtin) => println!("{} is a shell builtin", cmd),
+        Option::Some(CommandType::External(path)) => println!("{} is {}", cmd, path),
+        _ => eprintln!("{}: not found", cmd),
     }
 }
 
@@ -157,7 +137,7 @@ pub fn handle_command(cmd: Command) {
             // handled in main loop
         }
         Command::Echo(text) => println!("{}", text),
-        Command::Type(cmd) => run_type_command(&cmd),
+        Command::Type(cmd) => run_type_command(cmd),
         Command::External(args) => run_external_command(args),
         Command::Unknown(name) => println!("{}: command not found", name),
     }
