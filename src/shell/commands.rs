@@ -134,7 +134,7 @@ fn run_external_command(args: Vec<String>) {
 pub fn handle_command(cmd: Command) {
     match cmd {
         Command::Exit(_) => {
-            // handled in main loop
+            // handled in main loopp
         }
         Command::Echo(text) => println!("{}", text),
         Command::Type(cmd) => run_type_command(cmd),
