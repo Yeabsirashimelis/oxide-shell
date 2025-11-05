@@ -87,7 +87,7 @@ pub fn map_external_commands(command_map: &mut HashMap<String, CommandType>) {
             CommandType::External("/tmp/qux/my_exe".to_string()),
         );
     } else {
-        eprintln!("Warning: PATH enviroment variable not found");
+        eprintln!("Warning: PATH enviroment variable not found!");
     }
 }
 
