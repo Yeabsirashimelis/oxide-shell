@@ -15,6 +15,7 @@ pub fn parse_command(input: &str) -> Option<Command> {
             Some(Command::Exit(code))
         }
         "echo" => Some(Command::Echo(args)),
+        "type" => Some(Command::Type(args)),
         _ => Some(Command::Unknown(cmd.to_string())),
     }
 }
