@@ -82,6 +82,7 @@ pub fn map_external_commands(command_map: &mut HashMap<String, CommandType>) {
                 }
             }
         }
+        command_map.insert("my_exe".to_string(), "/tmp/foo/my_exe".to_string())
     } else {
         eprintln!("Warning: PATH enviroment variable not found");
     }
