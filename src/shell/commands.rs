@@ -88,7 +88,7 @@ fn load_cmd_and_description() -> HashMap<String, CommandType> {
 
     command_map.insert(
         "my_exe".to_string(),
-        CommandType::External("/tmp/bar/my_exe".to_string()),
+        CommandType::External("/tmp/baz/my_exe".to_string()),
     );
 
     command_map
