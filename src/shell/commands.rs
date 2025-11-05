@@ -1,9 +1,4 @@
-use core::error;
-use std::{
-    collections::HashMap,
-    env, fs,
-    path::{self, PathBuf},
-};
+use std::{collections::HashMap, env, fs, path::PathBuf};
 
 pub enum Command {
     Exit(i32),
@@ -123,9 +118,8 @@ fn run_external_command(args: Vec<String>) {
         return;
     }
     let (cmd, args) = args.split_first().unwrap();
-    println!("{}, {:?}", cmd, args);
 
-    let mut process = std::process::Command::new(cmd).args(args).spawn();
+    let process = std::process::Command::new(cmd).args(args).spawn();
 
     match process {
         Result::Ok(mut process) => {
