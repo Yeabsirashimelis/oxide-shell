@@ -1,4 +1,8 @@
-use std::{collections::HashMap, env, fs, path::PathBuf};
+use std::{
+    collections::HashMap,
+    env, fs,
+    path::{self, Path, PathBuf},
+};
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -9,6 +13,7 @@ pub enum Command {
     Unknown(String),
     Type(String),
     PWD,
+    CD(String),
     External(Vec<String>),
 }
 
@@ -26,6 +31,7 @@ fn map_builtin_commands(command_map: &mut HashMap<String, CommandType>) {
     command_map.insert("exit".to_string(), CommandType::Builtin);
     command_map.insert("type".to_string(), CommandType::Builtin);
     command_map.insert("pwd".to_string(), CommandType::Builtin);
+    command_map.insert("cd".to_string(), CommandType::Builtin);
 }
 
 pub fn map_external_commands(command_map: &mut HashMap<String, CommandType>) {
@@ -151,6 +157,16 @@ fn run_pwd_command() {
     }
 }
 
+fn run_cd_command(path_str: &str) {
+    let path = Path::new(path_str);
+    let dir_change = env::set_current_dir(path);
+
+    match dir_change {
+        Result::Ok(_) => (),
+        Result::Err(_) => eprintln!("cd: {}: No such file or directory", path_str),
+    }
+}
+
 pub fn handle_command(cmd: Command) {
     match cmd {
         Command::Exit(_) => {
@@ -159,6 +175,7 @@ pub fn handle_command(cmd: Command) {
         Command::Echo(text) => println!("{}", text),
         Command::Type(cmd) => run_type_command(cmd),
         Command::PWD => run_pwd_command(),
+        Command::CD(path) => run_cd_command(&path),
         Command::External(args) => run_external_command(args),
         Command::Unknown(name) => println!("{}: command not found", name),
     }

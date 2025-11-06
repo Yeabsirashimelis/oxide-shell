@@ -31,6 +31,7 @@ pub fn parse_command(input: &str) -> Option<Command> {
         "echo" => Some(Command::Echo(args)),
         "type" => Some(Command::Type(args)),
         "pwd" => Some(Command::PWD),
+        "cd" => Some(Command::CD(args)),
         _ => Some(Command::Unknown(cmd.to_string())),
     }
 }
