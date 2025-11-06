@@ -8,6 +8,7 @@ pub enum Command {
     Echo(String),
     Unknown(String),
     Type(String),
+    PWD,
     External(Vec<String>),
 }
 
@@ -140,6 +141,15 @@ fn run_external_command(args: Vec<String>) {
     return;
 }
 
+fn run_pwd_command() {
+    let path = env::current_dir();
+
+    match path {
+        Result::Ok(working_dir) => println!("{}", working_dir.display()),
+        Result::Err(error) => eprintln!("failed to get working directory, {}", error),
+    }
+}
+
 pub fn handle_command(cmd: Command) {
     match cmd {
         Command::Exit(_) => {
@@ -147,6 +157,7 @@ pub fn handle_command(cmd: Command) {
         }
         Command::Echo(text) => println!("{}", text),
         Command::Type(cmd) => run_type_command(cmd),
+        Command::PWD => run_pwd_command(),
         Command::External(args) => run_external_command(args),
         Command::Unknown(name) => println!("{}: command not found", name),
     }
