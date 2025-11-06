@@ -24,15 +24,12 @@ fn map_builtin_commands(command_map: &mut HashMap<String, CommandType>) {
 }
 
 pub fn map_external_commands(command_map: &mut HashMap<String, CommandType>) {
-    // external commands
-    // Valid extensions for Windows
     #[cfg(windows)]
     let valid_extensions = ["exe", "bat", "cmd"];
     #[cfg(not(windows))]
-    let valid_extensions: [&str; 0] = []; // On Unix, we'll assume all files are potentially executable
+    let valid_extensions: [&str; 0] = [];
 
     if let Ok(paths) = env::var("PATH") {
-        // Use correct separator for Windows vs Unix
         #[cfg(windows)]
         let separator = ';';
         #[cfg(not(windows))]
@@ -45,14 +42,11 @@ pub fn map_external_commands(command_map: &mut HashMap<String, CommandType>) {
             }
 
             let path = PathBuf::from(dir);
-
-            // Check if directory exists
             if path.is_dir() {
                 if let Ok(entries) = fs::read_dir(path) {
                     for entry in entries.flatten() {
                         let file_path = entry.path();
 
-                        // On Unix, check if it's a file; on Windows, check extension too
                         if file_path.is_file() {
                             if let Some(file_name) = file_path.file_name().and_then(|n| n.to_str())
                             {
@@ -63,31 +57,39 @@ pub fn map_external_commands(command_map: &mut HashMap<String, CommandType>) {
                                     {
                                         if !valid_extensions.contains(&ext.to_lowercase().as_str())
                                         {
-                                            continue; // skip non-executables
+                                            continue;
                                         }
                                     } else {
-                                        continue; // skip files without extension
+                                        continue;
                                     }
                                 }
 
-                                // Insert into HashMap if not already present
-                                command_map
-                                    .entry(file_name.split(".").collect::<Vec<_>>()[0].to_string())
-                                    .or_insert(CommandType::External(
-                                        file_path.to_string_lossy().to_string(),
-                                    ));
+                                // ✅ Check if executable before inserting
+                                #[cfg(unix)]
+                                {
+                                    if let Ok(metadata) = fs::metadata(&file_path) {
+                                        let mode = metadata.permissions().mode();
+                                        let is_executable = mode & 0o111 != 0;
+                                        if !is_executable {
+                                            continue; // skip non-executable
+                                        }
+                                    } else {
+                                        continue;
+                                    }
+                                }
+
+                                // ✅ Now insert — first executable wins
+                                command_map.entry(file_name.to_string()).or_insert(
+                                    CommandType::External(file_path.to_string_lossy().to_string()),
+                                );
                             }
                         }
                     }
                 }
             }
         }
-        command_map.insert(
-            "my_exe".to_string(),
-            CommandType::External("/tmp/qux/my_exe".to_string()),
-        );
     } else {
-        eprintln!("Warning: PATH enviroment variable not found");
+        eprintln!("Warning: PATH environment variable not found");
     }
 }
 
