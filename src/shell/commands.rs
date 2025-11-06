@@ -1,5 +1,6 @@
 use std::{collections::HashMap, env, fs, path::PathBuf};
 
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
 pub enum Command {
@@ -142,7 +143,7 @@ fn run_external_command(args: Vec<String>) {
 pub fn handle_command(cmd: Command) {
     match cmd {
         Command::Exit(_) => {
-            // handled in main loopp
+            // handled in main loop
         }
         Command::Echo(text) => println!("{}", text),
         Command::Type(cmd) => run_type_command(cmd),
