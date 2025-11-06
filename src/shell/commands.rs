@@ -1,5 +1,7 @@
 use std::{collections::HashMap, env, fs, path::PathBuf};
 
+use std::os::unix::fs::PermissionsExt;
+
 pub enum Command {
     Exit(i32),
     Echo(String),
