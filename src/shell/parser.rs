@@ -15,7 +15,7 @@ pub fn parse_command(input: &str) -> Option<Command> {
 
     for c in input.trim().chars() {
         match c {
-            '\'' => {
+            '\'' | '\"' => {
                 in_single_quotes = !in_single_quotes;
                 continue; // skip the quote itself
             }
