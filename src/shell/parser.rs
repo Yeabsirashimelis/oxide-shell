@@ -32,6 +32,10 @@ pub fn parse_command(input: &str) -> Option<Command> {
         "type" => Some(Command::Type(args)),
         "pwd" => Some(Command::PWD),
         "cd" => Some(Command::CD(args)),
+        "cat" => {
+            let args_vec: Vec<String> = parts.iter().map(|s| s.to_string()).collect();
+            return Some(Command::Cat(args_vec));
+        }
         _ => Some(Command::Unknown(cmd.to_string())),
     }
 }

@@ -1,4 +1,6 @@
+mod cat_command;
 mod cd_command;
+mod echo_command;
 mod external_command;
 mod map_commands;
 mod pwd_command;
@@ -11,8 +13,9 @@ use std::os::unix::fs::PermissionsExt;
 
 pub use crate::shell::commands::map_commands::{map_builtin_commands, map_external_commands};
 use crate::shell::commands::{
-    cd_command::run_cd_command, external_command::run_external_command,
-    pwd_command::run_pwd_command, type_command::run_type_command,
+    cat_command::run_cat_command, cd_command::run_cd_command, echo_command::run_echo_command,
+    external_command::run_external_command, pwd_command::run_pwd_command,
+    type_command::run_type_command,
 };
 
 pub enum Command {
@@ -22,6 +25,7 @@ pub enum Command {
     Type(String),
     PWD,
     CD(String),
+    Cat(Vec<String>),
     External(Vec<String>),
 }
 
@@ -46,10 +50,11 @@ pub fn handle_command(cmd: Command) {
         Command::Exit(_) => {
             // handled in main loop
         }
-        Command::Echo(text) => println!("{}", text),
+        Command::Echo(text) => run_echo_command(text),
         Command::Type(cmd) => run_type_command(cmd),
         Command::PWD => run_pwd_command(),
         Command::CD(path) => run_cd_command(&path),
+        Command::Cat(paths) => run_cat_command(paths),
         Command::External(args) => run_external_command(args),
         Command::Unknown(name) => println!("{}: command not found", name),
     }
