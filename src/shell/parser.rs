@@ -4,26 +4,54 @@ use crate::shell::commands::{map_external_commands, CommandType};
 
 use super::commands::Command;
 
+fn split_command(input: &str) -> (String, Vec<String>) {
+    let mut in_quotes = false;
+    let mut current = String::new();
+    let mut parts = Vec::new();
+
+    for c in input.chars() {
+        match c {
+            '\'' => in_quotes = !in_quotes,
+            ' ' if !in_quotes => {
+                if !current.is_empty() {
+                    parts.push(current.clone());
+                    current.clear();
+                }
+            }
+            _ => current.push(c),
+        }
+    }
+
+    if !current.is_empty() {
+        parts.push(current);
+    }
+
+    let empty = String::new();
+
+    let (cmd, args) = parts.split_first().unwrap_or((&empty, &[]));
+    (cmd.clone(), args.iter().cloned().collect())
+}
+
 pub fn parse_command(input: &str) -> Option<Command> {
-    let parts: Vec<&str> = input.trim().split_whitespace().collect();
-    if parts.is_empty() {
+    let (cmd, args_vec) = split_command(input);
+
+    if cmd.is_empty() {
         return None;
     }
 
-    let (cmd, args) = parts.split_first().unwrap();
-    let args = args.join(" ");
+    let args = args_vec.join(" ");
 
     let mut external_commands: HashMap<String, CommandType> = HashMap::new();
     map_external_commands(&mut external_commands);
 
     // check if the command is external
-    if external_commands.contains_key(*cmd) {
+    if external_commands.contains_key(cmd.as_str()) {
         // Build a Vec<String> including both the command and its arguments
-        let args_vec: Vec<String> = parts.iter().map(|s| s.to_string()).collect();
-        return Some(Command::External(args_vec));
+
+        return Some(Command::External(args_vec.clone()));
     }
 
-    match *cmd {
+    match cmd.as_str() {
         "exit" => {
             let code = args.parse::<i32>().unwrap_or(0);
             Some(Command::Exit(code))
@@ -32,10 +60,7 @@ pub fn parse_command(input: &str) -> Option<Command> {
         "type" => Some(Command::Type(args)),
         "pwd" => Some(Command::PWD),
         "cd" => Some(Command::CD(args)),
-        "cat" => {
-            let args_vec: Vec<String> = parts.iter().map(|s| s.to_string()).collect();
-            return Some(Command::Cat(args_vec));
-        }
+        "cat" => Some(Command::Cat(args_vec)),
         _ => Some(Command::Unknown(cmd.to_string())),
     }
 }
