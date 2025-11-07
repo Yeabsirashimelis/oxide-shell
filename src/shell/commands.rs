@@ -158,12 +158,20 @@ fn run_pwd_command() {
 }
 
 fn run_cd_command(path_str: &str) {
-    let path = Path::new(path_str);
-    let dir_change = env::set_current_dir(path);
+    let mut target_path = PathBuf::new();
 
-    match dir_change {
-        Result::Ok(_) => (),
-        Result::Err(_) => eprintln!("cd: {}: No such file or directory", path_str),
+    if path_str == "~" {
+        if let Result::Ok(home) = env::var("USERPROFILE") {
+            target_path.push(home);
+        }
+    } else {
+        target_path.push(path_str);
+    }
+
+    let dir_change = env::set_current_dir(target_path);
+
+    if let Result::Err(_) = dir_change {
+        eprintln!("cd: {}: No such file or directory", path_str);
     }
 }
 
