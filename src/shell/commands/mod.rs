@@ -8,9 +8,6 @@ mod type_command;
 
 use std::collections::HashMap;
 
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
-
 pub use crate::shell::commands::map_commands::{map_builtin_commands, map_external_commands};
 use crate::shell::commands::{
     cat_command::run_cat_command, cd_command::run_cd_command, echo_command::run_echo_command,

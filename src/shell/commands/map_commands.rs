@@ -1,5 +1,8 @@
 use std::{collections::HashMap, env, fs, path::PathBuf};
 
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+
 use crate::shell::commands::CommandType;
 
 pub fn map_builtin_commands(command_map: &mut HashMap<String, CommandType>) {
