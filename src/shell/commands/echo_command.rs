@@ -4,18 +4,9 @@ pub fn run_echo_command(text: String) {
     for c in text.chars() {
         if c == '\'' {
             in_single_quote = !in_single_quote;
-            continue;
+            continue; // skip quotes
         }
-
-        if in_single_quote {
-            print!("{}", c);
-        } else {
-            if !c.is_whitespace() {
-                print!("{}", c);
-            } else {
-                print!(" ")
-            }
-        }
+        print!("{}", c);
     }
     println!();
 }
