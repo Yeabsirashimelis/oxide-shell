@@ -12,14 +12,22 @@ pub fn parse_command(input: &str) -> Option<Command> {
     let mut parts: Vec<String> = Vec::new();
     let mut current = String::new();
     let mut in_single_quotes = false;
+    let mut in_double_quotes = false;
 
     for c in input.trim().chars() {
         match c {
-            '\'' | '\"' => {
+            '\'' if !in_double_quotes => {
                 in_single_quotes = !in_single_quotes;
-                continue; // skip the quote itself
+                continue;
+                // skip the quote itself if it is not inside double quote
             }
-            ' ' if !in_single_quotes => {
+
+            '"' if !in_single_quotes => {
+                in_double_quotes = !in_double_quotes;
+                continue;
+                // skip the quote itself if it is not inside double quote
+            }
+            ' ' if !in_single_quotes && !in_double_quotes => {
                 if !current.is_empty() {
                     parts.push(current.clone());
                     current.clear();
