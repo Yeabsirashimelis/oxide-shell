@@ -75,7 +75,7 @@ pub fn map_external_commands(command_map: &mut HashMap<String, CommandType>) {
                                     }
                                 }
 
-                                // ✅ Check if executable before inserting
+                                //Check if executable before inserting
                                 #[cfg(unix)]
                                 {
                                     if let Ok(metadata) = fs::metadata(&file_path) {
@@ -89,7 +89,7 @@ pub fn map_external_commands(command_map: &mut HashMap<String, CommandType>) {
                                     }
                                 }
 
-                                // ✅ Now insert — first executable wins
+                                //Now insert — first executable wins
                                 command_map.entry(file_name.to_string()).or_insert(
                                     CommandType::External(file_path.to_string_lossy().to_string()),
                                 );
