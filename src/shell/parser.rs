@@ -21,6 +21,10 @@ pub fn parse_command(input: &str) -> Option<Command> {
         match c {
             '\\' => {
                 if let Some(next_char) = chars.next() {
+                    // take "\" literally in single quotes
+                    if in_single_quotes {
+                        current.push('\\');
+                    }
                     // if in double quotes, only escape special chars
                     if in_double_quotes && !"\\\"$`".contains(next_char) {
                         current.push('\\');
