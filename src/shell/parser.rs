@@ -1,41 +1,55 @@
 use std::collections::HashMap;
 
+use super::commands::Command;
 use crate::shell::commands::{map_external_commands, CommandType};
 
-use super::commands::Command;
 pub fn parse_command(input: &str) -> Option<Command> {
     if input.trim().is_empty() {
         return None;
     }
 
-    // Custom tokenizer that respects single quotes
+    // Custom tokenizer that respects quotes and backslashes
     let mut parts: Vec<String> = Vec::new();
     let mut current = String::new();
     let mut in_single_quotes = false;
     let mut in_double_quotes = false;
 
-    for c in input.trim().chars() {
+    // 👇 Use a manual iterator instead of for-loop
+    let mut chars = input.trim().chars().peekable();
+
+    while let Some(c) = chars.next() {
         match c {
+            '\\' => {
+                if let Some(next_char) = chars.next() {
+                    // if in double quotes, only escape special chars
+                    if in_double_quotes && !"\\\"$`".contains(next_char) {
+                        current.push('\\');
+                    }
+                    current.push(next_char);
+                }
+            }
+
             '\'' if !in_double_quotes => {
                 in_single_quotes = !in_single_quotes;
                 continue;
-                // skip the quote itself if it is not inside double quote
             }
 
             '"' if !in_single_quotes => {
                 in_double_quotes = !in_double_quotes;
                 continue;
-                // skip the quote itself if it is not inside double quote
             }
+
             ' ' if !in_single_quotes && !in_double_quotes => {
                 if !current.is_empty() {
                     parts.push(current.clone());
                     current.clear();
                 }
             }
+
             _ => current.push(c),
         }
     }
+
     if !current.is_empty() {
         parts.push(current);
     }
