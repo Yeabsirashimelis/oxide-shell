@@ -79,37 +79,28 @@ pub fn parse_command(input: &str) -> Option<Command> {
         }
     }
 
-    match cmd.as_str() {
-        "exit" => {
-            let code = args.parse::<i32>().unwrap_or(0);
-            return Some(Command::Exit(code));
-        }
-        "echo" => {
-            return Some(Command::Echo(args));
-        }
-        "type" => {
-            return Some(Command::Type(args));
-        }
-        "pwd" => {
-            return Some(Command::PWD);
-        }
-        "cd" => {
-            return Some(Command::CD(args));
-        }
-        "cat" => {
-            let args_vec: Vec<String> = parts.iter().map(|s| s.to_string()).collect();
-            return Some(Command::Cat(args_vec));
-        }
-        "ls" => {
-            return Some(Command::Ls(args));
-        }
-        _ => {}
-    }
-
     if external_commands.contains_key(&cmd_to_check) {
         let args_vec: Vec<String> = parts.iter().map(|s| s.to_string()).collect();
         return Some(Command::External(args_vec));
-    } else {
-        return Some(Command::Unknown(cmd.to_string()));
+    }
+
+    match cmd.as_str() {
+        "exit" => {
+            let code = args.parse::<i32>().unwrap_or(0);
+            Some(Command::Exit(code))
+        }
+        "echo" => {
+            println!("echo is parsed");
+            Some(Command::Echo(args))
+        }
+        "type" => Some(Command::Type(args)),
+        "pwd" => Some(Command::PWD),
+        "cd" => Some(Command::CD(args)),
+        "cat" => {
+            let args_vec: Vec<String> = parts.iter().map(|s| s.to_string()).collect();
+            Some(Command::Cat(args_vec))
+        }
+        "ls" => Some(Command::Ls(args)),
+        _ => Some(Command::Unknown(cmd.to_string())),
     }
 }
