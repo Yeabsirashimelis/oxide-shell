@@ -5,8 +5,7 @@ use std::{
 };
 
 pub fn run_ls_command(command: &str) {
-    // Split manually, respecting quotes would be ideal, but here assume tester uses simple paths
-    let mut parts: Vec<&str> = command.trim().split_whitespace().collect();
+    let parts: Vec<&str> = command.trim().split_whitespace().collect();
 
     let mut dir_path = "."; // default
     let mut output_path: Option<&str> = None;
