@@ -1,0 +1,16 @@
+.codecrafters
+.git
+.gitattributes
+.gitignore
+Cargo.lock
+Cargo.toml
+codecrafters.yml
+file1.txt
+file2.txt
+file3.txt
+file6.txt
+README.md
+src
+target
+Users
+your_program.sh

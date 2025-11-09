@@ -1,60 +1,67 @@
 use std::{
-    fs::File,
-    io::{self, Read},
+    fs::{self, File},
+    io::{self, Read, Write},
+    path::Path,
 };
 
-pub fn run_cat_command(paths: Vec<String>) {
-    //REMEMBER: the first element in the vector is the command it self
+pub fn run_cat_command(args: Vec<String>) {
+    //Skip the first element (the "cat" command itself)
+    let mut files: Vec<String> = args.into_iter().skip(1).collect();
 
-    //remove the single quote from the paths
-    let x = paths
-        .iter()
-        .map(|path| {
-            if path.starts_with('\'') && path.ends_with('\'') {
-                path[1..path.len() - 1].to_string()
-            } else {
-                path.clone()
-            }
-        })
-        .collect::<Vec<String>>();
-
-    let mut total_content: Vec<String> = vec![];
-
-    for (index, path) in x.iter().enumerate() {
-        // pass the command - the first element in the vector
-        if index == 0 {
-            continue;
+    //Detect redirection symbol if passed from the user
+    let mut output_path: Option<String> = None;
+    if let Some(pos) = files.iter().position(|a| a == ">" || a == "1>") {
+        //The file path comes right after > or 1>
+        if pos + 1 < files.len() {
+            output_path = Some(files[pos + 1].clone());
         }
-
-        let file_content = read_file(path);
-        let content_str = match file_content {
-            Result::Ok(content) => content,
-            Result::Err(error) => {
-                eprintln!(
-                    "Error opening file, ERROR: {}, FOR PATH GIVEN: {}",
-                    error, path
-                );
-                return;
-            }
-        };
-        total_content.push(content_str);
+        //Remove the redirect symbols and file from args
+        files.drain(pos..);
     }
 
-    println!("{}", total_content.join(" "));
+    let mut total_content = Vec::new();
+
+    for file_path in &files {
+        let clean_path = file_path.trim_matches('\'').trim();
+
+        match read_file(clean_path) {
+            Ok(content) => total_content.push(content),
+            Err(_) => {
+                eprintln!("cat: {}: No such file or directory", clean_path);
+            }
+        }
+    }
+
+    let joined = total_content.join("");
+
+    if let Some(path) = output_path {
+        // Ensure parent dirs exist
+        let path_obj = Path::new(&path);
+        if let Some(parent) = path_obj.parent() {
+            if !parent.exists() {
+                if let Err(err) = fs::create_dir_all(parent) {
+                    eprintln!("cat: could not create directories: {}", err);
+                    return;
+                }
+            }
+        }
+
+        match File::create(path_obj) {
+            Ok(mut file) => {
+                if let Err(err) = file.write_all(joined.as_bytes()) {
+                    eprintln!("cat: error writing to {}: {}", path, err);
+                }
+            }
+            Err(err) => eprintln!("cat: cannot create {}: {}", path, err),
+        }
+    } else {
+        print!("{}", joined);
+    }
 }
 
 fn read_file(path: &str) -> Result<String, io::Error> {
-    let mut file = match File::open(path.trim()) {
-        Result::Ok(file) => file,
-        Result::Err(error) => return Result::Err(error),
-    };
-
-    let mut file_contents = String::new();
-    let read_operation = file.read_to_string(&mut file_contents);
-
-    if let Result::Err(error) = read_operation {
-        return Result::Err(error);
-    }
-
-    Result::Ok(file_contents)
+    let mut file = File::open(path)?;
+    let mut content = String::new();
+    file.read_to_string(&mut content)?;
+    Ok(content)
 }
