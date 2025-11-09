@@ -8,24 +8,20 @@ pub fn parse_command(input: &str) -> Option<Command> {
         return None;
     }
 
-    // Custom tokenizer that respects quotes and backslashes
     let mut parts: Vec<String> = Vec::new();
     let mut current = String::new();
     let mut in_single_quotes = false;
     let mut in_double_quotes = false;
 
-    // 👇 Use a manual iterator instead of for-loop
     let mut chars = input.trim().chars().peekable();
 
     while let Some(c) = chars.next() {
         match c {
             '\\' => {
                 if let Some(next_char) = chars.next() {
-                    // take "\" literally in single quotes
                     if in_single_quotes {
-                        current.push('\\');
+                        current.push('\\'); // literal in single quotes
                     }
-                    // if in double quotes, only escape special chars
                     if in_double_quotes && !"\\\"$`".contains(next_char) {
                         current.push('\\');
                     }
@@ -36,19 +32,16 @@ pub fn parse_command(input: &str) -> Option<Command> {
                 in_single_quotes = !in_single_quotes;
                 continue;
             }
-
             '"' if !in_single_quotes => {
                 in_double_quotes = !in_double_quotes;
                 continue;
             }
-
             ' ' if !in_single_quotes && !in_double_quotes => {
                 if !current.is_empty() {
                     parts.push(current.clone());
                     current.clear();
                 }
             }
-
             _ => current.push(c),
         }
     }
@@ -79,19 +72,21 @@ pub fn parse_command(input: &str) -> Option<Command> {
         }
     }
 
-    if external_commands.contains_key(&cmd_to_check) {
-        let args_vec: Vec<String> = parts.iter().map(|s| s.to_string()).collect();
-        return Some(Command::External(args_vec));
-    }
-
     match cmd.as_str() {
         "exit" => {
             let code = args.parse::<i32>().unwrap_or(0);
             Some(Command::Exit(code))
         }
         "echo" => {
-            println!("echo is parsed");
-            Some(Command::Echo(args))
+            if args.contains('>') || args.contains("1>") {
+                Some(Command::Echo(args))
+            } else if external_commands.contains_key(&cmd_to_check) {
+                let args_vec: Vec<String> = parts.iter().map(|s| s.to_string()).collect();
+                Some(Command::External(args_vec))
+            } else {
+                // Fallback to Rust echo
+                Some(Command::Echo(args))
+            }
         }
         "type" => Some(Command::Type(args)),
         "pwd" => Some(Command::PWD),
@@ -101,6 +96,13 @@ pub fn parse_command(input: &str) -> Option<Command> {
             Some(Command::Cat(args_vec))
         }
         "ls" => Some(Command::Ls(args)),
-        _ => Some(Command::Unknown(cmd.to_string())),
+        _ => {
+            if external_commands.contains_key(&cmd_to_check) {
+                let args_vec: Vec<String> = parts.iter().map(|s| s.to_string()).collect();
+                Some(Command::External(args_vec))
+            } else {
+                Some(Command::Unknown(cmd.to_string()))
+            }
+        }
     }
 }
