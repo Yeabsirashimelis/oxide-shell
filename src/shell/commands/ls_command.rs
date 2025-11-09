@@ -1,16 +1,9 @@
-use std::{
-    fs::{self, File},
-    io::Write,
-    path::Path,
-};
+use std::{fs, io::Write, path::Path};
 
 pub fn run_ls_command(command: &str) {
-    // Example command:
-    // "ls /tmp/baz > /tmp/foo/baz.md"
-
     let parts: Vec<&str> = command.split_whitespace().collect();
     let mut output_path: Option<&str> = None;
-    let mut dir_path = "."; // default to current directory
+    let mut dir_path = ".";
 
     let mut i = 1;
     while i < parts.len() {
@@ -27,27 +20,32 @@ pub fn run_ls_command(command: &str) {
     }
 
     let path_obj = Path::new(dir_path);
-    let mut output = String::new();
+    let mut entries_vec = Vec::new();
 
     if path_obj.is_dir() {
         match fs::read_dir(path_obj) {
             Ok(entries) => {
                 for entry in entries {
                     if let Ok(e) = entry {
-                        output.push_str(&format!("{}\n", e.file_name().to_string_lossy()));
+                        entries_vec.push(e.file_name().to_string_lossy().to_string());
                     }
                 }
+                entries_vec.sort(); // SORT alphabetically
             }
-            Err(err) => output.push_str(&format!("ls: cannot open '{}': {}\n", dir_path, err)),
+            Err(err) => {
+                eprintln!("ls: cannot open '{}': {}", dir_path, err);
+                return;
+            }
         }
     } else {
-        output.push_str(&format!(
-            "ls: cannot access '{}': Not a directory\n",
-            dir_path
-        ));
+        eprintln!("ls: cannot access '{}': Not a directory", dir_path);
+        return;
     }
 
-    // Now handle redirection
+    // Combine entries into output string
+    let output = entries_vec.join("\n") + "\n";
+
+    // Handle redirection
     if let Some(path) = output_path {
         if let Some(parent) = Path::new(path).parent() {
             if !parent.exists() {
@@ -57,8 +55,7 @@ pub fn run_ls_command(command: &str) {
                 }
             }
         }
-
-        match File::create(path) {
+        match fs::File::create(path) {
             Ok(mut file) => {
                 if let Err(err) = file.write_all(output.as_bytes()) {
                     eprintln!("ls: failed to write to '{}': {}", path, err);
@@ -67,7 +64,6 @@ pub fn run_ls_command(command: &str) {
             Err(err) => eprintln!("ls: failed to open '{}': {}", path, err),
         }
     } else {
-        // No redirection, print to stdout
         print!("{}", output);
     }
 }
