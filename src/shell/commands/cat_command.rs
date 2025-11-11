@@ -1,6 +1,7 @@
 use std::{
-    fs::{self, OpenOptions},
-    io::Write,
+    fs::{self, File, OpenOptions},
+    io::{Read, Write},
+    path::Path,
 };
 
 pub fn run_cat_command(args: Vec<String>) {
@@ -11,64 +12,78 @@ pub fn run_cat_command(args: Vec<String>) {
     let mut error_path: Option<String> = None;
     let mut append_stderr = false;
 
+    // detect redirection
     if let Some(pos) = files
         .iter()
-        .position(|a| [" >", "1>", ">>", "1>>", "2>", "2>>"].contains(&a.as_str()))
+        .position(|a| ["1>", ">", "1>>", ">>"].contains(&a.as_str()))
     {
+        let op = files[pos].as_str();
         if pos + 1 < files.len() {
-            match files[pos].as_str() {
-                ">" | "1>" => {
-                    append_stdout = false;
-                    output_path = Some(files[pos + 1].clone());
-                }
-                ">>" | "1>>" => {
-                    append_stdout = true;
-                    output_path = Some(files[pos + 1].clone());
-                }
-                "2>" => {
-                    append_stderr = false;
-                    error_path = Some(files[pos + 1].clone());
-                }
-                "2>>" => {
-                    append_stderr = true;
-                    error_path = Some(files[pos + 1].clone());
-                }
-                _ => {}
-            }
+            output_path = Some(files[pos + 1].clone());
+            append_stdout = op.ends_with(">>");
         }
-        files.drain(pos..);
+        files.drain(pos..=pos + 1);
     }
 
-    let write_error = |msg: &str| {
-        if let Some(path) = &error_path {
-            let mut options = OpenOptions::new();
-            options.create(true);
-            if append_stderr {
-                options.append(true);
-            } else {
-                options.write(true).truncate(true);
-            }
-            let _ = options
-                .open(path)
-                .and_then(|mut f| f.write_all(msg.as_bytes()));
-        } else {
-            eprint!("{}", msg);
+    if let Some(pos) = files
+        .iter()
+        .position(|a| ["2>", "2>>"].contains(&a.as_str()))
+    {
+        let op = files[pos].as_str();
+        if pos + 1 < files.len() {
+            error_path = Some(files[pos + 1].clone());
+            append_stderr = op.ends_with(">>");
         }
-    };
+        files.drain(pos..=pos + 1);
+    }
 
     let mut total_content = Vec::new();
 
     for file_path in &files {
-        let path = file_path.trim_matches(|c| c == '\'' || c == '"');
-        match fs::read_to_string(path) {
-            Ok(content) => total_content.push(content),
-            Err(_) => write_error(&format!("cat: {}: No such file or directory\n", path)),
+        match File::open(file_path) {
+            Ok(mut f) => {
+                let mut content = String::new();
+                if let Err(_) = f.read_to_string(&mut content) {
+                    if let Some(path) = &error_path {
+                        let path_obj = Path::new(path);
+                        if let Some(parent) = path_obj.parent() {
+                            let _ = fs::create_dir_all(parent);
+                        }
+                        let mut options = OpenOptions::new();
+                        options.create(true).append(true).write(true);
+                        let _ = options
+                            .open(path_obj)
+                            .and_then(|mut f| writeln!(f, "cat: {}: Could not read", file_path));
+                    }
+                    continue;
+                }
+                total_content.push(content);
+            }
+            Err(_) => {
+                if let Some(path) = &error_path {
+                    let path_obj = Path::new(path);
+                    if let Some(parent) = path_obj.parent() {
+                        let _ = fs::create_dir_all(parent);
+                    }
+                    let mut options = OpenOptions::new();
+                    options.create(true).append(true).write(true);
+                    let _ = options.open(path_obj).and_then(|mut f| {
+                        writeln!(f, "cat: {}: No such file or directory", file_path)
+                    });
+                } else {
+                    eprintln!("cat: {}: No such file or directory", file_path);
+                }
+            }
         }
     }
 
     let joined = total_content.join("");
 
     if let Some(path) = output_path {
+        let path_obj = Path::new(&path);
+        if let Some(parent) = path_obj.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
         let mut options = OpenOptions::new();
         options.create(true);
         if append_stdout {
@@ -77,8 +92,8 @@ pub fn run_cat_command(args: Vec<String>) {
             options.write(true).truncate(true);
         }
         let _ = options
-            .open(path)
-            .and_then(|mut f| f.write_all(joined.as_bytes()));
+            .open(path_obj)
+            .and_then(|mut f| write!(f, "{}", joined));
     } else {
         print!("{}", joined);
     }

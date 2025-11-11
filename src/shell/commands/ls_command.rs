@@ -53,6 +53,10 @@ pub fn run_ls_command(command: &str) {
 
     let write_error = |msg: &str| {
         if let Some(path) = error_path {
+            let path_obj = Path::new(path);
+            if let Some(parent) = path_obj.parent() {
+                let _ = fs::create_dir_all(parent);
+            }
             let mut options = OpenOptions::new();
             options.create(true);
             if append_stderr {
@@ -61,20 +65,20 @@ pub fn run_ls_command(command: &str) {
                 options.write(true).truncate(true);
             }
             let _ = options
-                .open(path)
-                .and_then(|mut f| f.write_all(msg.as_bytes()));
+                .open(path_obj)
+                .and_then(|mut f| writeln!(f, "{}", msg));
         } else {
             eprint!("{}", msg);
         }
     };
 
     if !path_obj.exists() {
-        write_error(&format!("ls: {}: No such file or directory\n", dir_path));
+        write_error(&format!("ls: {}: No such file or directory", dir_path));
         return;
     }
 
     if !path_obj.is_dir() {
-        write_error(&format!("ls: {}: Not a directory\n", dir_path));
+        write_error(&format!("ls: {}: Not a directory", dir_path));
         return;
     }
 
@@ -84,7 +88,7 @@ pub fn run_ls_command(command: &str) {
             entries.push(entry.file_name().to_string_lossy().to_string());
         }
     } else {
-        write_error(&format!("ls: {}: Cannot read directory\n", dir_path));
+        write_error(&format!("ls: {}: Cannot read directory", dir_path));
         return;
     }
 
@@ -92,6 +96,10 @@ pub fn run_ls_command(command: &str) {
     let output = entries.join("\n") + "\n";
 
     if let Some(path) = output_path {
+        let path_obj = Path::new(path);
+        if let Some(parent) = path_obj.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
         let mut options = OpenOptions::new();
         options.create(true);
         if append_stdout {
@@ -99,9 +107,12 @@ pub fn run_ls_command(command: &str) {
         } else {
             options.write(true).truncate(true);
         }
-        let _ = options
-            .open(path)
-            .and_then(|mut f| f.write_all(output.as_bytes()));
+        if let Err(err) = options
+            .open(path_obj)
+            .and_then(|mut f| f.write_all(output.as_bytes()))
+        {
+            write_error(&format!("ls: failed to write to {}: {}", path, err));
+        }
     } else {
         print!("{}", output);
     }

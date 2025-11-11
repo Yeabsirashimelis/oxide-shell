@@ -1,4 +1,8 @@
-use std::{fs::OpenOptions, io::Write};
+use std::{
+    fs::{self, OpenOptions},
+    io::Write,
+    path::Path,
+};
 
 pub fn run_echo_command(input: &str) {
     let input = input.trim();
@@ -40,6 +44,10 @@ pub fn run_echo_command(input: &str) {
 
     let write_error = |msg: &str| {
         if let Some(path) = error_path {
+            let path_obj = Path::new(path);
+            if let Some(parent) = path_obj.parent() {
+                let _ = fs::create_dir_all(parent);
+            }
             let mut options = OpenOptions::new();
             options.create(true);
             if append_stderr {
@@ -48,14 +56,18 @@ pub fn run_echo_command(input: &str) {
                 options.write(true).truncate(true);
             }
             let _ = options
-                .open(path)
-                .and_then(|mut f| f.write_all(msg.as_bytes()));
+                .open(path_obj)
+                .and_then(|mut f| writeln!(f, "{}", msg));
         } else {
             eprint!("{}", msg);
         }
     };
 
     if let Some(path) = output_path {
+        let path_obj = Path::new(path);
+        if let Some(parent) = path_obj.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
         let mut options = OpenOptions::new();
         options.create(true);
         if append_stdout {
@@ -64,10 +76,10 @@ pub fn run_echo_command(input: &str) {
             options.write(true).truncate(true);
         }
         if let Err(err) = options
-            .open(path)
+            .open(path_obj)
             .and_then(|mut f| writeln!(f, "{}", text_part))
         {
-            write_error(&format!("echo: failed to write: {}\n", err));
+            write_error(&format!("echo: failed to write: {}", err));
         }
     } else {
         println!("{}", text_part);
