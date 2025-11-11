@@ -5,14 +5,23 @@ use std::{
 };
 
 pub fn run_cat_command(args: Vec<String>) {
-    // kip the first element (the "cat" command itself)
     let mut files: Vec<String> = args.into_iter().skip(1).collect();
 
-    // Detect redirection symbol if passed from the user
     let mut output_path: Option<String> = None;
+    let mut error_path: Option<String> = None;
+
+    // detect stdout redirection
     if let Some(pos) = files.iter().position(|a| a == ">" || a == "1>") {
         if pos + 1 < files.len() {
             output_path = Some(files[pos + 1].clone());
+        }
+        files.drain(pos..);
+    }
+
+    // detect stderr redirection
+    if let Some(pos) = files.iter().position(|a| a == "2>") {
+        if pos + 1 < files.len() {
+            error_path = Some(files[pos + 1].clone());
         }
         files.drain(pos..);
     }
@@ -24,18 +33,39 @@ pub fn run_cat_command(args: Vec<String>) {
 
         match read_file(&clean_path) {
             Ok(content) => total_content.push(content),
-            Err(_) => eprintln!("cat: {}: No such file or directory", clean_path),
+            Err(_) => {
+                let err_msg = format!("cat: {}: No such file or directory\n", clean_path);
+
+                if let Some(path) = &error_path {
+                    // ensure directory exists
+                    let path_obj = Path::new(path);
+                    if let Some(parent) = path_obj.parent() {
+                        let _ = fs::create_dir_all(parent);
+                    }
+                    let _ =
+                        File::create(path_obj).and_then(|mut f| f.write_all(err_msg.as_bytes()));
+                } else {
+                    eprint!("{}", err_msg);
+                }
+            }
         }
     }
 
-    let joined = total_content.join(""); // preserves formatting exactly
+    let joined = total_content.join("");
 
     if let Some(path) = output_path {
+        // Write stdout to file
         let path_obj = Path::new(&path);
         if let Some(parent) = path_obj.parent() {
             if !parent.exists() {
                 if let Err(err) = fs::create_dir_all(parent) {
-                    eprintln!("cat: could not create directories: {}", err);
+                    let msg = format!("cat: could not create directories: {}\n", err);
+                    if let Some(err_path) = error_path {
+                        let _ =
+                            File::create(err_path).and_then(|mut f| f.write_all(msg.as_bytes()));
+                    } else {
+                        eprint!("{}", msg);
+                    }
                     return;
                 }
             }
@@ -44,26 +74,37 @@ pub fn run_cat_command(args: Vec<String>) {
         match File::create(path_obj) {
             Ok(mut file) => {
                 if let Err(err) = file.write_all(joined.as_bytes()) {
-                    eprintln!("cat: error writing to {}: {}", path, err);
+                    let msg = format!("cat: error writing to {}: {}\n", path, err);
+                    if let Some(err_path) = error_path {
+                        let _ =
+                            File::create(err_path).and_then(|mut f| f.write_all(msg.as_bytes()));
+                    } else {
+                        eprint!("{}", msg);
+                    }
                 }
             }
-            Err(err) => eprintln!("cat: cannot create {}: {}", path, err),
+            Err(err) => {
+                let msg = format!("cat: cannot create {}: {}\n", path, err);
+                if let Some(err_path) = error_path {
+                    let _ = File::create(err_path).and_then(|mut f| f.write_all(msg.as_bytes()));
+                } else {
+                    eprint!("{}", msg);
+                }
+            }
         }
     } else {
+        // print normally to stdout
         print!("{}", joined);
     }
 }
 
-//Handle quoted paths and escape sequences
 fn unquote_path(path: &str) -> String {
     let mut s = path.trim().to_string();
 
-    //Remove outer single or double quotes
     if (s.starts_with('\'') && s.ends_with('\'')) || (s.starts_with('"') && s.ends_with('"')) {
         s = s[1..s.len() - 1].to_string();
     }
 
-    //Handle escaped sequences if double-quoted
     if path.starts_with('"') && path.ends_with('"') {
         s = s
             .replace(r"\n", "\n")

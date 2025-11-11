@@ -9,6 +9,7 @@ pub fn run_ls_command(command: &str) {
 
     let mut dir_path = "."; // default
     let mut output_path: Option<&str> = None;
+    let mut error_path: Option<&str> = None;
 
     let mut i = 1; // skip "ls"
     while i < parts.len() {
@@ -16,7 +17,13 @@ pub fn run_ls_command(command: &str) {
             ">" | "1>" => {
                 if i + 1 < parts.len() {
                     output_path = Some(parts[i + 1]);
-                    break;
+                    i += 1;
+                }
+            }
+            "2>" => {
+                if i + 1 < parts.len() {
+                    error_path = Some(parts[i + 1]);
+                    i += 1;
                 }
             }
             _ => dir_path = parts[i],
@@ -26,7 +33,13 @@ pub fn run_ls_command(command: &str) {
 
     let path_obj = Path::new(dir_path);
     if !path_obj.exists() || !path_obj.is_dir() {
-        eprintln!("ls: cannot access '{}': Not a directory", dir_path);
+        let err_msg = format!("ls: cannot access '{}': Not a directory\n", dir_path);
+
+        if let Some(path) = error_path {
+            let _ = File::create(path).and_then(|mut f| f.write_all(err_msg.as_bytes()));
+        } else {
+            eprint!("{}", err_msg);
+        }
         return;
     }
 
@@ -40,39 +53,27 @@ pub fn run_ls_command(command: &str) {
             }
         }
         Err(err) => {
-            eprintln!("ls: cannot read directory '{}': {}", dir_path, err);
+            let err_msg = format!("ls: cannot read directory '{}': {}\n", dir_path, err);
+            if let Some(path) = error_path {
+                let _ = File::create(path).and_then(|mut f| f.write_all(err_msg.as_bytes()));
+            } else {
+                eprint!("{}", err_msg);
+            }
             return;
         }
     }
 
-    // Sort alphabetically for tester
     entries.sort();
     let output = entries.join("\n") + "\n";
 
     if let Some(path) = output_path {
-        let path_obj = Path::new(path);
-
-        // Create parent directories if they don't exist
-        if let Some(parent) = path_obj.parent() {
-            if !parent.exists() {
-                if let Err(err) = fs::create_dir_all(parent) {
-                    eprintln!(
-                        "ls: failed to create directories '{}': {}",
-                        parent.display(),
-                        err
-                    );
-                    return;
-                }
+        if let Err(err) = File::create(path).and_then(|mut f| f.write_all(output.as_bytes())) {
+            let err_msg = format!("ls: failed to write to '{}': {}\n", path, err);
+            if let Some(err_path) = error_path {
+                let _ = File::create(err_path).and_then(|mut f| f.write_all(err_msg.as_bytes()));
+            } else {
+                eprint!("{}", err_msg);
             }
-        }
-
-        match File::create(path_obj) {
-            Ok(mut file) => {
-                if let Err(err) = file.write_all(output.as_bytes()) {
-                    eprintln!("ls: failed to write to '{}': {}", path, err);
-                }
-            }
-            Err(err) => eprintln!("ls: failed to open '{}': {}", path, err),
         }
     } else {
         print!("{}", output);
