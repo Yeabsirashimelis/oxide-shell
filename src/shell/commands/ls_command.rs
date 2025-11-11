@@ -51,7 +51,6 @@ pub fn run_ls_command(command: &str) {
 
     let path_obj = Path::new(dir_path);
 
-    // Helper to write to error file or stderr
     let write_error = |msg: &str| {
         if let Some(path) = error_path {
             let mut options = OpenOptions::new();
@@ -69,19 +68,16 @@ pub fn run_ls_command(command: &str) {
         }
     };
 
-    // Handle missing path
     if !path_obj.exists() {
         write_error(&format!("ls: {}: No such file or directory\n", dir_path));
         return;
     }
 
-    // Handle non-directory
     if !path_obj.is_dir() {
         write_error(&format!("ls: {}: Not a directory\n", dir_path));
         return;
     }
 
-    // Read directory
     let mut entries: Vec<String> = vec![];
     if let Ok(dir_entries) = fs::read_dir(path_obj) {
         for entry in dir_entries.flatten() {

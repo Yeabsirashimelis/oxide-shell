@@ -10,7 +10,6 @@ pub fn run_echo_command(input: &str) {
 
     let mut text_part = input;
 
-    // Detect operators
     for op in ["1>>", ">>", "2>>", "2>", "1>", ">"] {
         if input.contains(op) {
             let parts: Vec<&str> = input.splitn(2, op).collect();
@@ -66,11 +65,11 @@ pub fn run_echo_command(input: &str) {
         }
         if let Err(err) = options
             .open(path)
-            .and_then(|mut f| f.write_all(text_part.as_bytes()))
+            .and_then(|mut f| writeln!(f, "{}", text_part))
         {
             write_error(&format!("echo: failed to write: {}\n", err));
         }
     } else {
-        print!("{}", text_part);
+        println!("{}", text_part);
     }
 }

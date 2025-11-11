@@ -39,8 +39,6 @@ pub fn run_cat_command(args: Vec<String>) {
         files.drain(pos..);
     }
 
-    let mut total_content = Vec::new();
-
     let write_error = |msg: &str| {
         if let Some(path) = &error_path {
             let mut options = OpenOptions::new();
@@ -57,6 +55,8 @@ pub fn run_cat_command(args: Vec<String>) {
             eprint!("{}", msg);
         }
     };
+
+    let mut total_content = Vec::new();
 
     for file_path in &files {
         let path = file_path.trim_matches(|c| c == '\'' || c == '"');
