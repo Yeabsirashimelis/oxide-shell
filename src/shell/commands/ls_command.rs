@@ -1,5 +1,5 @@
 use std::{
-    fs::{self, File, OpenOptions},
+    fs::{self, OpenOptions},
     io::Write,
     path::Path,
 };

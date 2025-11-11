@@ -1,8 +1,4 @@
-use std::{
-    fs::{File, OpenOptions},
-    io::Write,
-    path::Path,
-};
+use std::{fs::OpenOptions, io::Write};
 
 pub fn run_echo_command(input: &str) {
     let input = input.trim();

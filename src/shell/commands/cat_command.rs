@@ -1,7 +1,6 @@
 use std::{
-    fs::{self, File, OpenOptions},
-    io::{self, Read, Write},
-    path::Path,
+    fs::{self, OpenOptions},
+    io::Write,
 };
 
 pub fn run_cat_command(args: Vec<String>) {
