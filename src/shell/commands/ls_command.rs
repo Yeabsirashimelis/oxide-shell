@@ -33,7 +33,7 @@ pub fn run_ls_command(command: &str) {
 
     let path_obj = Path::new(dir_path);
     if !path_obj.exists() || !path_obj.is_dir() {
-        let err_msg = format!("ls: cannot access '{}': Not a directory\n", dir_path);
+        let err_msg = format!("ls: cannot access '{}': Not a directory", dir_path);
 
         if let Some(path) = error_path {
             let _ = File::create(path).and_then(|mut f| f.write_all(err_msg.as_bytes()));
