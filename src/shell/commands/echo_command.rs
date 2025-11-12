@@ -1,5 +1,4 @@
-use std::fs;
-use std::io::Write;
+use std::io::{self, Write};
 use std::path::Path;
 
 use crate::shell::commands::cat_command::open_file;
@@ -11,7 +10,6 @@ pub fn run_echo_command(input: String) {
     let mut output_path: Option<(&str, bool)> = None;
     let mut error_path: Option<(&str, bool)> = None;
 
-    // detect stderr redirection
     if input.contains("2>>") {
         let parts: Vec<&str> = input.splitn(2, "2>>").collect();
         text_part = parts[0].trim();
@@ -22,7 +20,6 @@ pub fn run_echo_command(input: String) {
         error_path = Some((parts[1].trim(), false));
     }
 
-    // detect stdout redirection
     if text_part.contains("1>>") {
         let parts: Vec<&str> = text_part.splitn(2, "1>>").collect();
         text_part = parts[0].trim();
@@ -41,7 +38,6 @@ pub fn run_echo_command(input: String) {
         output_path = Some((parts[1].trim(), false));
     }
 
-    // extract message
     let text_part = text_part.trim_start_matches("echo").trim();
     let message = text_part
         .strip_prefix('"')
@@ -53,7 +49,6 @@ pub fn run_echo_command(input: String) {
         })
         .unwrap_or(text_part);
 
-    // make sure files exist
     if let Some((path, append)) = output_path {
         let _ = open_file(Path::new(path), append);
     }
@@ -61,7 +56,6 @@ pub fn run_echo_command(input: String) {
         let _ = open_file(Path::new(path), append);
     }
 
-    // actual writing
     if let Some((path, append)) = output_path {
         if let Ok(mut f) = open_file(Path::new(path), append) {
             let _ = writeln!(f, "{}", message);
@@ -71,13 +65,12 @@ pub fn run_echo_command(input: String) {
 
     if let Some((path, append)) = error_path {
         if let Ok(mut f) = open_file(Path::new(path), append) {
-            // 👇 The key fix: actually write to stderr target file
             let _ = writeln!(f, "{}", message);
             let _ = f.flush();
         }
+        let _ = writeln!(io::stderr(), "{}", message);
     }
 
-    // Only print if no redirection
     if output_path.is_none() && error_path.is_none() {
         println!("{}", message);
     }
