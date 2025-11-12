@@ -9,7 +9,7 @@ pub fn run_echo_command(input: String) {
     let mut output_path: Option<(&str, bool)> = None;
     let mut error_path: Option<(&str, bool)> = None;
 
-    // stderr redirection
+    // Process stderr redirections FIRST
     if input.contains("2>>") {
         let parts: Vec<&str> = input.splitn(2, "2>>").collect();
         text_part = parts[0].trim();
@@ -20,7 +20,7 @@ pub fn run_echo_command(input: String) {
         error_path = Some((parts[1].trim(), false));
     }
 
-    // stdout redirection
+    // THEN process stdout redirections
     if text_part.contains("1>>") {
         let parts: Vec<&str> = text_part.splitn(2, "1>>").collect();
         text_part = parts[0].trim();
@@ -51,28 +51,17 @@ pub fn run_echo_command(input: String) {
         })
         .unwrap_or(text_part);
 
-    // ensure files exist
-    if let Some((path, append)) = output_path {
-        let _ = open_file(Path::new(path), append);
-    }
-    if let Some((path, append)) = error_path {
-        let _ = open_file(Path::new(path), append);
-    }
-
     // write to stdout file if exists
     if let Some((path, append)) = output_path {
         let _ = open_file(Path::new(path), append).and_then(|mut f| writeln!(f, "{}", message));
+    } else {
+        // Only print to stdout if no stdout redirection
+        println!("{}", message);
     }
 
-    // write to stderr file if exists
+    // write to stderr file if exists (this is separate from stdout)
     if let Some((path, append)) = error_path {
         let _ = open_file(Path::new(path), append).and_then(|mut f| writeln!(f, "{}", message));
-    }
-
-    // Only print to stdout if no stdout redirection
-    // (stderr redirection doesn't affect stdout output)
-    if output_path.is_none() {
-        println!("{}", message);
     }
 }
 
