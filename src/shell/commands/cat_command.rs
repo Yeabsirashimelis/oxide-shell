@@ -42,7 +42,7 @@ pub fn run_cat_command(args: Vec<String>) {
         files.drain(pos..);
     }
 
-    // ✅ ensure files exist even if nothing is written yet
+    // ✅ Ensure redirected files exist before running
     if let Some((path, append)) = &output_path {
         let _ = open_file(Path::new(path), *append);
     }
@@ -82,7 +82,7 @@ pub fn run_cat_command(args: Vec<String>) {
 
 fn open_file(path: &Path, append: bool) -> io::Result<File> {
     let mut options = OpenOptions::new();
-    options.create(true); // ✅ always create
+    options.create(true);
     if append {
         options.append(true);
     } else {

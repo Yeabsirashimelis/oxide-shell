@@ -1,4 +1,4 @@
-use std::fs::{self, File, OpenOptions};
+use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::Path;
 
@@ -42,12 +42,16 @@ pub fn run_echo_command(input: String) {
     let text_part = text_part.trim_start_matches("echo").trim();
     let message = text_part.trim_matches('\'');
 
+    if let Some((path, append)) = output_path {
+        let _ = open_file(Path::new(path), append);
+    }
+    if let Some((path, append)) = error_path {
+        let _ = open_file(Path::new(path), append);
+    }
+
     // Handle stdout redirection
     if let Some((path, append)) = output_path {
         let output_path = Path::new(path);
-        if let Some(parent) = output_path.parent() {
-            let _ = fs::create_dir_all(parent);
-        }
         let _ = open_file(output_path, append).and_then(|mut f| writeln!(f, "{}", message));
         return;
     }
@@ -55,9 +59,6 @@ pub fn run_echo_command(input: String) {
     // Handle stderr redirection
     if let Some((path, append)) = error_path {
         let error_path = Path::new(path);
-        if let Some(parent) = error_path.parent() {
-            let _ = fs::create_dir_all(parent);
-        }
         let _ = open_file(error_path, append).and_then(|mut f| writeln!(f, "{}", message));
     }
 
