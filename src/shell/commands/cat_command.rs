@@ -36,7 +36,8 @@ pub fn run_cat_command(args: Vec<String>) {
 
     // detect stderr overwrite
     if let Some(pos) = files.iter().position(|a| a == "2>") {
-        if pos + 1 < parts.len() {
+        if pos + 1 < files.len() {
+            // Fixed: changed parts.len() to files.len()
             error_path = Some((files[pos + 1].clone(), false));
         }
         files.drain(pos..);
