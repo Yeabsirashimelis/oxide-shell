@@ -3,7 +3,6 @@ use std::{
     io::{self, Read, Write},
     path::Path,
 };
-
 pub fn run_cat_command(args: Vec<String>) {
     let mut files: Vec<String> = args.into_iter().skip(1).collect();
 
@@ -54,18 +53,8 @@ pub fn run_cat_command(args: Vec<String>) {
                 let err_msg = format!("cat: {}: No such file or directory\n", clean_path);
 
                 if let Some((path, append)) = &error_path {
-                    // Properly open file with append mode and write error
-                    match open_file(Path::new(path), *append) {
-                        Ok(mut file) => {
-                            if let Err(e) = file.write_all(err_msg.as_bytes()) {
-                                // If writing to redirected stderr fails, fall back to terminal
-                                eprint!("{}", err_msg);
-                            }
-                        }
-                        Err(_) => {
-                            // If opening redirected file fails, fall back to terminal
-                            eprint!("{}", err_msg);
-                        }
+                    if let Ok(mut file) = open_file(Path::new(path), *append) {
+                        let _ = file.write_all(err_msg.as_bytes());
                     }
                 } else {
                     eprint!("{}", err_msg);
@@ -84,7 +73,6 @@ pub fn run_cat_command(args: Vec<String>) {
                 let _ = file.write_all(joined.as_bytes());
             }
             Err(_) => {
-                // If stdout redirection fails, print to terminal
                 if !joined.is_empty() {
                     print!("{}", joined);
                 }
@@ -95,11 +83,11 @@ pub fn run_cat_command(args: Vec<String>) {
     }
 }
 
-fn open_file(path: &Path, append: bool) -> io::Result<File> {
+pub fn open_file(path: &Path, append: bool) -> std::io::Result<File> {
     let mut options = OpenOptions::new();
     options.create(true);
     if append {
-        options.append(true); // This should preserve existing content
+        options.append(true);
     } else {
         options.write(true).truncate(true);
     }

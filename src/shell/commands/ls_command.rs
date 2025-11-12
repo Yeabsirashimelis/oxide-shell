@@ -1,6 +1,6 @@
 use std::{
-    fs::{self},
-    io::Write,
+    fs::{self, File, OpenOptions},
+    io::{self, Read, Write},
     path::Path,
 };
 
@@ -45,6 +45,7 @@ pub fn run_ls_command(command: &str) {
         i += 1;
     }
 
+    // Ensure files exist as you did previously
     if let Some((path, append)) = output_path {
         let _ = open_file(Path::new(path), append);
     }
@@ -57,8 +58,9 @@ pub fn run_ls_command(command: &str) {
     if !path_obj.exists() {
         let err_msg = format!("ls: {}: No such file or directory\n", dir_path);
         if let Some((path, append)) = error_path {
-            let _ = open_file(Path::new(path), append)
-                .and_then(|mut f| f.write_all(err_msg.as_bytes()));
+            if let Ok(mut f) = open_file(Path::new(path), append) {
+                let _ = f.write_all(err_msg.as_bytes());
+            }
         } else {
             eprint!("{}", err_msg);
         }
@@ -68,15 +70,16 @@ pub fn run_ls_command(command: &str) {
     if !path_obj.is_dir() {
         let err_msg = format!("ls: {}: Not a directory\n", dir_path);
         if let Some((path, append)) = error_path {
-            let _ = open_file(Path::new(path), append)
-                .and_then(|mut f| f.write_all(err_msg.as_bytes()));
+            if let Ok(mut f) = open_file(Path::new(path), append) {
+                let _ = f.write_all(err_msg.as_bytes());
+            }
         } else {
             eprint!("{}", err_msg);
         }
         return;
     }
 
-    let mut entries: Vec<String> = vec![];
+    let mut entries: Vec<String> = Vec::new();
     match fs::read_dir(path_obj) {
         Ok(dir_entries) => {
             for entry in dir_entries.flatten() {
@@ -86,8 +89,9 @@ pub fn run_ls_command(command: &str) {
         Err(err) => {
             let err_msg = format!("ls: cannot read directory '{}': {}\n", dir_path, err);
             if let Some((path, append)) = error_path {
-                let _ = open_file(Path::new(path), append)
-                    .and_then(|mut f| f.write_all(err_msg.as_bytes()));
+                if let Ok(mut f) = open_file(Path::new(path), append) {
+                    let _ = f.write_all(err_msg.as_bytes());
+                }
             } else {
                 eprint!("{}", err_msg);
             }
@@ -101,8 +105,6 @@ pub fn run_ls_command(command: &str) {
     if let Some((path, append)) = output_path {
         let _ = open_file(Path::new(path), append).and_then(|mut f| f.write_all(output.as_bytes()));
     } else {
-        // Always print to stdout if no stdout redirection
-        // (stderr redirection doesn't affect stdout)
         print!("{}", output);
     }
 }
