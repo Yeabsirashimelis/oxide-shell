@@ -1,15 +1,14 @@
-use std::fs::{File, OpenOptions};
+use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::Path;
 
 pub fn run_echo_command(input: String) {
     let input = input.trim();
-
     let mut text_part = input;
     let mut output_path: Option<(&str, bool)> = None;
     let mut error_path: Option<(&str, bool)> = None;
 
-    // Detect stderr append (2>>)
+    // stderr redirection
     if input.contains("2>>") {
         let parts: Vec<&str> = input.splitn(2, "2>>").collect();
         text_part = parts[0].trim();
@@ -20,7 +19,7 @@ pub fn run_echo_command(input: String) {
         error_path = Some((parts[1].trim(), false));
     }
 
-    // Detect stdout append
+    // stdout redirection
     if text_part.contains("1>>") {
         let parts: Vec<&str> = text_part.splitn(2, "1>>").collect();
         text_part = parts[0].trim();
@@ -42,36 +41,31 @@ pub fn run_echo_command(input: String) {
     let text_part = text_part.trim_start_matches("echo").trim();
     let message = text_part.trim_matches('\'');
 
-    if let Some((path, append)) = output_path {
-        let _ = open_file(Path::new(path), append);
-    }
-    if let Some((path, append)) = error_path {
-        let _ = open_file(Path::new(path), append);
-    }
-
-    // Handle stdout redirection
+    // Write stdout
     if let Some((path, append)) = output_path {
         let output_path = Path::new(path);
+        if let Some(parent) = output_path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
         let _ = open_file(output_path, append).and_then(|mut f| writeln!(f, "{}", message));
-        return;
+    } else if error_path.is_none() {
+        println!("{}", message);
     }
 
-    // Handle stderr redirection
+    // Write stderr (if only error_path exists)
     if let Some((path, append)) = error_path {
         let error_path = Path::new(path);
+        if let Some(parent) = error_path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
         let _ = open_file(error_path, append).and_then(|mut f| writeln!(f, "{}", message));
     }
-
-    println!("{}", message);
 }
 
 fn open_file(path: &Path, append: bool) -> std::io::Result<File> {
-    let mut options = OpenOptions::new();
-    options.create(true);
     if append {
-        options.append(true);
+        OpenOptions::new().create(true).append(true).open(path)
     } else {
-        options.write(true).truncate(true);
+        File::create(path)
     }
-    options.open(path)
 }
