@@ -1,77 +1,66 @@
 use std::{
     fs::{self, File, OpenOptions},
-    io::{Read, Write},
+    io::{self, Read, Write},
     path::Path,
 };
 
 pub fn run_cat_command(args: Vec<String>) {
     let mut files: Vec<String> = args.into_iter().skip(1).collect();
 
-    let mut output_path: Option<String> = None;
-    let mut append_stdout = false;
-    let mut error_path: Option<String> = None;
-    let mut append_stderr = false;
+    let mut output_path: Option<(String, bool)> = None;
+    let mut error_path: Option<(String, bool)> = None;
 
-    // detect redirection
-    if let Some(pos) = files
-        .iter()
-        .position(|a| ["1>", ">", "1>>", ">>"].contains(&a.as_str()))
-    {
-        let op = files[pos].as_str();
+    // detect stdout append
+    if let Some(pos) = files.iter().position(|a| a == ">>" || a == "1>>") {
         if pos + 1 < files.len() {
-            output_path = Some(files[pos + 1].clone());
-            append_stdout = op.ends_with(">>");
+            output_path = Some((files[pos + 1].clone(), true));
         }
-        files.drain(pos..=pos + 1);
+        files.drain(pos..);
     }
 
-    if let Some(pos) = files
-        .iter()
-        .position(|a| ["2>", "2>>"].contains(&a.as_str()))
-    {
-        let op = files[pos].as_str();
+    // detect stdout overwrite
+    if let Some(pos) = files.iter().position(|a| a == ">" || a == "1>") {
         if pos + 1 < files.len() {
-            error_path = Some(files[pos + 1].clone());
-            append_stderr = op.ends_with(">>");
+            output_path = Some((files[pos + 1].clone(), false));
         }
-        files.drain(pos..=pos + 1);
+        files.drain(pos..);
+    }
+
+    // detect stderr append
+    if let Some(pos) = files.iter().position(|a| a == "2>>") {
+        if pos + 1 < files.len() {
+            error_path = Some((files[pos + 1].clone(), true));
+        }
+        files.drain(pos..);
+    }
+
+    // detect stderr overwrite
+    if let Some(pos) = files.iter().position(|a| a == "2>") {
+        if pos + 1 < files.len() {
+            error_path = Some((files[pos + 1].clone(), false));
+        }
+        files.drain(pos..);
     }
 
     let mut total_content = Vec::new();
 
     for file_path in &files {
-        match File::open(file_path) {
-            Ok(mut f) => {
-                let mut content = String::new();
-                if let Err(_) = f.read_to_string(&mut content) {
-                    if let Some(path) = &error_path {
-                        let path_obj = Path::new(path);
-                        if let Some(parent) = path_obj.parent() {
-                            let _ = fs::create_dir_all(parent);
-                        }
-                        let mut options = OpenOptions::new();
-                        options.create(true).append(true).write(true);
-                        let _ = options
-                            .open(path_obj)
-                            .and_then(|mut f| writeln!(f, "cat: {}: Could not read", file_path));
-                    }
-                    continue;
-                }
-                total_content.push(content);
-            }
+        let clean_path = unquote_path(file_path);
+
+        match read_file(&clean_path) {
+            Ok(content) => total_content.push(content),
             Err(_) => {
-                if let Some(path) = &error_path {
+                let err_msg = format!("cat: {}: No such file or directory\n", clean_path);
+
+                if let Some((path, append)) = &error_path {
                     let path_obj = Path::new(path);
                     if let Some(parent) = path_obj.parent() {
                         let _ = fs::create_dir_all(parent);
                     }
-                    let mut options = OpenOptions::new();
-                    options.create(true).append(true).write(true);
-                    let _ = options.open(path_obj).and_then(|mut f| {
-                        writeln!(f, "cat: {}: No such file or directory", file_path)
-                    });
+                    let _ = open_file(path_obj, *append)
+                        .and_then(|mut f| f.write_all(err_msg.as_bytes()));
                 } else {
-                    eprintln!("cat: {}: No such file or directory", file_path);
+                    eprint!("{}", err_msg);
                 }
             }
         }
@@ -79,22 +68,50 @@ pub fn run_cat_command(args: Vec<String>) {
 
     let joined = total_content.join("");
 
-    if let Some(path) = output_path {
+    if let Some((path, append)) = output_path {
         let path_obj = Path::new(&path);
         if let Some(parent) = path_obj.parent() {
             let _ = fs::create_dir_all(parent);
         }
-        let mut options = OpenOptions::new();
-        options.create(true);
-        if append_stdout {
-            options.append(true);
-        } else {
-            options.write(true).truncate(true);
+
+        match open_file(path_obj, append) {
+            Ok(mut file) => {
+                let _ = file.write_all(joined.as_bytes());
+            }
+            Err(err) => {
+                let msg = format!("cat: cannot open {}: {}\n", path, err);
+                if let Some((err_path, append_err)) = error_path {
+                    let _ = open_file(Path::new(&err_path), append_err)
+                        .and_then(|mut f| f.write_all(msg.as_bytes()));
+                } else {
+                    eprint!("{}", msg);
+                }
+            }
         }
-        let _ = options
-            .open(path_obj)
-            .and_then(|mut f| write!(f, "{}", joined));
     } else {
         print!("{}", joined);
     }
+}
+
+fn open_file(path: &Path, append: bool) -> io::Result<File> {
+    if append {
+        OpenOptions::new().create(true).append(true).open(path)
+    } else {
+        File::create(path)
+    }
+}
+
+fn unquote_path(path: &str) -> String {
+    let mut s = path.trim().to_string();
+    if (s.starts_with('\'') && s.ends_with('\'')) || (s.starts_with('"') && s.ends_with('"')) {
+        s = s[1..s.len() - 1].to_string();
+    }
+    s
+}
+
+fn read_file(path: &str) -> Result<String, io::Error> {
+    let mut file = File::open(path)?;
+    let mut content = String::new();
+    file.read_to_string(&mut content)?;
+    Ok(content)
 }

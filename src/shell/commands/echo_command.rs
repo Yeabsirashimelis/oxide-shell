@@ -1,87 +1,79 @@
-use std::{
-    fs::{self, OpenOptions},
-    io::Write,
-    path::Path,
-};
+use std::fs::{self, File, OpenOptions};
+use std::io::Write;
+use std::path::Path;
 
-pub fn run_echo_command(input: &str) {
+pub fn run_echo_command(input: String) {
     let input = input.trim();
 
-    let mut append_stdout = false;
-    let mut append_stderr = false;
-    let mut output_path: Option<&str> = None;
-    let mut error_path: Option<&str> = None;
-
     let mut text_part = input;
+    let mut output_path: Option<(&str, bool)> = None;
+    let mut error_path: Option<(&str, bool)> = None;
 
-    for op in ["1>>", ">>", "2>>", "2>", "1>", ">"] {
-        if input.contains(op) {
-            let parts: Vec<&str> = input.splitn(2, op).collect();
-            text_part = parts[0].trim_start_matches("echo").trim();
-            let path = parts[1].trim();
-            match op {
-                ">" | "1>" => {
-                    output_path = Some(path);
-                    append_stdout = false;
-                }
-                ">>" | "1>>" => {
-                    output_path = Some(path);
-                    append_stdout = true;
-                }
-                "2>" => {
-                    error_path = Some(path);
-                    append_stderr = false;
-                }
-                "2>>" => {
-                    error_path = Some(path);
-                    append_stderr = true;
-                }
-                _ => {}
-            }
-            break;
-        }
+    // Detect stderr append (2>>)
+    if input.contains("2>>") {
+        let parts: Vec<&str> = input.splitn(2, "2>>").collect();
+        text_part = parts[0].trim();
+        error_path = Some((parts[1].trim(), true));
+    } else if input.contains("2>") {
+        let parts: Vec<&str> = input.splitn(2, "2>").collect();
+        text_part = parts[0].trim();
+        error_path = Some((parts[1].trim(), false));
     }
 
-    let write_error = |msg: &str| {
-        if let Some(path) = error_path {
-            let path_obj = Path::new(path);
-            if let Some(parent) = path_obj.parent() {
-                let _ = fs::create_dir_all(parent);
-            }
-            let mut options = OpenOptions::new();
-            options.create(true);
-            if append_stderr {
-                options.append(true);
-            } else {
-                options.write(true).truncate(true);
-            }
-            let _ = options
-                .open(path_obj)
-                .and_then(|mut f| writeln!(f, "{}", msg));
-        } else {
-            eprint!("{}", msg);
-        }
-    };
+    // Detect stdout append
+    if text_part.contains("1>>") {
+        let parts: Vec<&str> = text_part.splitn(2, "1>>").collect();
+        text_part = parts[0].trim();
+        output_path = Some((parts[1].trim(), true));
+    } else if text_part.contains(">>") {
+        let parts: Vec<&str> = text_part.splitn(2, ">>").collect();
+        text_part = parts[0].trim();
+        output_path = Some((parts[1].trim(), true));
+    } else if text_part.contains("1>") {
+        let parts: Vec<&str> = text_part.splitn(2, "1>").collect();
+        text_part = parts[0].trim();
+        output_path = Some((parts[1].trim(), false));
+    } else if text_part.contains('>') {
+        let parts: Vec<&str> = text_part.splitn(2, '>').collect();
+        text_part = parts[0].trim();
+        output_path = Some((parts[1].trim(), false));
+    }
 
-    if let Some(path) = output_path {
-        let path_obj = Path::new(path);
-        if let Some(parent) = path_obj.parent() {
+    let text_part = text_part.trim_start_matches("echo").trim();
+    let message = text_part.trim_matches('\'');
+
+    // Handle stdout redirection
+    if let Some((path, append)) = output_path {
+        let output_path = Path::new(path);
+        if let Some(parent) = output_path.parent() {
             let _ = fs::create_dir_all(parent);
         }
-        let mut options = OpenOptions::new();
-        options.create(true);
-        if append_stdout {
-            options.append(true);
-        } else {
-            options.write(true).truncate(true);
+
+        match open_file(output_path, append) {
+            Ok(mut file) => {
+                let _ = writeln!(file, "{}", message);
+            }
+            Err(err) => eprintln!("echo: failed to open {}: {}", path, err),
         }
-        if let Err(err) = options
-            .open(path_obj)
-            .and_then(|mut f| writeln!(f, "{}", text_part))
-        {
-            write_error(&format!("echo: failed to write: {}", err));
+        return;
+    }
+
+    // Handle stderr redirection
+    if let Some((path, append)) = error_path {
+        let error_path = Path::new(path);
+        if let Some(parent) = error_path.parent() {
+            let _ = fs::create_dir_all(parent);
         }
+        let _ = open_file(error_path, append);
+    }
+
+    println!("{}", message);
+}
+
+fn open_file(path: &Path, append: bool) -> std::io::Result<File> {
+    if append {
+        OpenOptions::new().create(true).append(true).open(path)
     } else {
-        println!("{}", text_part);
+        File::create(path)
     }
 }
