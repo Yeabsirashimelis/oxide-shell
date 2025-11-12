@@ -1,8 +1,6 @@
-use std::{
-    fs::{File, OpenOptions},
-    io::{self, Write},
-    path::Path,
-};
+use std::fs::{File, OpenOptions};
+use std::io::Write;
+use std::path::Path;
 
 pub fn run_echo_command(input: String) {
     let input = input.trim();
@@ -11,7 +9,7 @@ pub fn run_echo_command(input: String) {
     let mut output_path: Option<(&str, bool)> = None;
     let mut error_path: Option<(&str, bool)> = None;
 
-    // Detect stderr append/overwrite
+    // Detect stderr redirection
     if input.contains("2>>") {
         let parts: Vec<&str> = input.splitn(2, "2>>").collect();
         text_part = parts[0].trim();
@@ -22,7 +20,7 @@ pub fn run_echo_command(input: String) {
         error_path = Some((parts[1].trim(), false));
     }
 
-    // Detect stdout append/overwrite
+    // Detect stdout redirection
     if text_part.contains("1>>") {
         let parts: Vec<&str> = text_part.splitn(2, "1>>").collect();
         text_part = parts[0].trim();
@@ -41,10 +39,19 @@ pub fn run_echo_command(input: String) {
         output_path = Some((parts[1].trim(), false));
     }
 
+    // Extract the actual message from quotes
     let text_part = text_part.trim_start_matches("echo").trim();
-    let message = text_part.trim_matches('\'');
+    let message = text_part
+        .strip_prefix('"')
+        .and_then(|s| s.strip_suffix('"'))
+        .or_else(|| {
+            text_part
+                .strip_prefix('\'')
+                .and_then(|s| s.strip_suffix('\''))
+        })
+        .unwrap_or(text_part);
 
-    // Ensure files exist
+    // Ensure redirected files exist
     if let Some((path, append)) = output_path {
         let _ = open_file(Path::new(path), append);
     }
@@ -66,7 +73,7 @@ pub fn run_echo_command(input: String) {
     }
 }
 
-pub fn open_file(path: &Path, append: bool) -> io::Result<File> {
+pub fn open_file(path: &Path, append: bool) -> std::io::Result<File> {
     let mut options = OpenOptions::new();
     options.create(true);
     if append {
