@@ -9,7 +9,7 @@ pub fn run_echo_command(input: String) {
     let mut output_path: Option<(&str, bool)> = None;
     let mut error_path: Option<(&str, bool)> = None;
 
-    // Detect stderr redirection
+    // stderr redirection
     if input.contains("2>>") {
         let parts: Vec<&str> = input.splitn(2, "2>>").collect();
         text_part = parts[0].trim();
@@ -20,7 +20,7 @@ pub fn run_echo_command(input: String) {
         error_path = Some((parts[1].trim(), false));
     }
 
-    // Detect stdout redirection
+    // stdout redirection
     if text_part.contains("1>>") {
         let parts: Vec<&str> = text_part.splitn(2, "1>>").collect();
         text_part = parts[0].trim();
@@ -39,7 +39,7 @@ pub fn run_echo_command(input: String) {
         output_path = Some((parts[1].trim(), false));
     }
 
-    // Extract the actual message from quotes
+    // extract message
     let text_part = text_part.trim_start_matches("echo").trim();
     let message = text_part
         .strip_prefix('"')
@@ -51,7 +51,7 @@ pub fn run_echo_command(input: String) {
         })
         .unwrap_or(text_part);
 
-    // Ensure redirected files exist
+    // ensure files exist
     if let Some((path, append)) = output_path {
         let _ = open_file(Path::new(path), append);
     }
@@ -59,17 +59,19 @@ pub fn run_echo_command(input: String) {
         let _ = open_file(Path::new(path), append);
     }
 
-    // Write to stdout or stderr respecting redirection
+    // write to stdout file if exists
     if let Some((path, append)) = output_path {
         let _ = open_file(Path::new(path), append).and_then(|mut f| writeln!(f, "{}", message));
-    } else if error_path.is_none() {
+    }
+
+    // write to stderr file if exists
+    if let Some((path, append)) = error_path {
+        let _ = open_file(Path::new(path), append).and_then(|mut f| writeln!(f, "{}", message));
+    }
+
+    // Only print to stdout if **no stdout redirection**
+    if output_path.is_none() && error_path.is_none() {
         println!("{}", message);
-    }
-
-    if let Some((path, append)) = error_path {
-        let _ = open_file(Path::new(path), append).and_then(|mut f| writeln!(f, "{}", message));
-    } else if output_path.is_none() {
-        eprint!("{}", message);
     }
 }
 
