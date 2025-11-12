@@ -8,13 +8,13 @@ pub fn run_cat_command(args: Vec<String>) {
     let mut output_path: Option<(String, bool)> = None;
     let mut error_path: Option<(String, bool)> = None;
 
+    // Parse stdout redirection first
     if let Some(pos) = files.iter().position(|a| a == ">>" || a == "1>>") {
         if pos + 1 < files.len() {
             output_path = Some((files[pos + 1].clone(), true));
             files.drain(pos..=pos + 1);
         }
     }
-
     if let Some(pos) = files.iter().position(|a| a == ">" || a == "1>") {
         if pos + 1 < files.len() {
             output_path = Some((files[pos + 1].clone(), false));
@@ -22,13 +22,13 @@ pub fn run_cat_command(args: Vec<String>) {
         }
     }
 
+    // Parse stderr redirection
     if let Some(pos) = files.iter().position(|a| a == "2>>") {
         if pos + 1 < files.len() {
             error_path = Some((files[pos + 1].clone(), true));
             files.drain(pos..=pos + 1);
         }
     }
-
     if let Some(pos) = files.iter().position(|a| a == "2>") {
         if pos + 1 < files.len() {
             error_path = Some((files[pos + 1].clone(), false));
@@ -46,31 +46,33 @@ pub fn run_cat_command(args: Vec<String>) {
             Err(_) => {
                 let err_msg = format!("cat: {}: No such file or directory\n", clean_path);
 
+                // Write to redirected stderr file
                 if let Some((path, append)) = &error_path {
                     if let Ok(mut file) = open_file(Path::new(path), *append) {
                         let _ = file.write_all(err_msg.as_bytes());
+                        let _ = file.flush();
                     }
-                } else {
-                    eprint!("{}", err_msg);
                 }
+
+                // Also write to actual stderr
+                let _ = eprint!("{}", err_msg);
             }
         }
     }
 
     let joined = total_content.join("");
 
+    // Write to stdout file if redirected
     if let Some((path, append)) = output_path {
-        match open_file(Path::new(&path), append) {
-            Ok(mut file) => {
-                let _ = file.write_all(joined.as_bytes());
-            }
-            Err(_) => {
-                if !joined.is_empty() {
-                    print!("{}", joined);
-                }
-            }
+        if let Ok(mut file) = open_file(Path::new(&path), append) {
+            let _ = file.write_all(joined.as_bytes());
+            let _ = file.flush();
+        } else if !joined.is_empty() {
+            // fallback to normal stdout if file fails
+            print!("{}", joined);
         }
     } else if !joined.is_empty() {
+        // no redirection → print to console
         print!("{}", joined);
     }
 }
