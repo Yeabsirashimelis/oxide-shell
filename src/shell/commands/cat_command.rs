@@ -10,44 +10,40 @@ pub fn run_cat_command(args: Vec<String>) {
     let mut output_path: Option<(String, bool)> = None;
     let mut error_path: Option<(String, bool)> = None;
 
-    // Process ALL redirections first
-    let mut i = 0;
-    while i < files.len() {
-        match files[i].as_str() {
-            ">" | "1>" => {
-                if i + 1 < files.len() {
-                    output_path = Some((files[i + 1].clone(), false));
-                    files.drain(i..=i + 1);
-                    continue; // Don't increment i since we removed elements
-                }
-            }
-            ">>" | "1>>" => {
-                if i + 1 < files.len() {
-                    output_path = Some((files[i + 1].clone(), true));
-                    files.drain(i..=i + 1);
-                    continue;
-                }
-            }
-            "2>" => {
-                if i + 1 < files.len() {
-                    error_path = Some((files[i + 1].clone(), false));
-                    files.drain(i..=i + 1);
-                    continue;
-                }
-            }
-            "2>>" => {
-                if i + 1 < files.len() {
-                    error_path = Some((files[i + 1].clone(), true));
-                    files.drain(i..=i + 1);
-                    continue;
-                }
-            }
-            _ => {}
+    // detect stdout append
+    if let Some(pos) = files.iter().position(|a| a == ">>" || a == "1>>") {
+        if pos + 1 < files.len() {
+            output_path = Some((files[pos + 1].clone(), true));
+            files.drain(pos..=pos + 1);
         }
-        i += 1;
+    }
+
+    //detect stdout overwrite
+    if let Some(pos) = files.iter().position(|a| a == ">" || a == "1>") {
+        if pos + 1 < files.len() {
+            output_path = Some((files[pos + 1].clone(), false));
+            files.drain(pos..=pos + 1);
+        }
+    }
+
+    // detect stderr append
+    if let Some(pos) = files.iter().position(|a| a == "2>>") {
+        if pos + 1 < files.len() {
+            error_path = Some((files[pos + 1].clone(), true));
+            files.drain(pos..=pos + 1);
+        }
+    }
+
+    // detect stderr overwrite
+    if let Some(pos) = files.iter().position(|a| a == "2>") {
+        if pos + 1 < files.len() {
+            error_path = Some((files[pos + 1].clone(), false));
+            files.drain(pos..=pos + 1);
+        }
     }
 
     let mut total_content = Vec::new();
+    let mut has_error = false;
 
     for file_path in &files {
         let clean_path = unquote_path(file_path);
@@ -58,11 +54,10 @@ pub fn run_cat_command(args: Vec<String>) {
                 let err_msg = format!("cat: {}: No such file or directory\n", clean_path);
 
                 if let Some((path, append)) = &error_path {
-                    // Clean the path and open file
-                    let clean_error_path = unquote_path(path);
-                    match open_file(Path::new(&clean_error_path), *append) {
+                    // Properly open file with append mode and write error
+                    match open_file(Path::new(path), *append) {
                         Ok(mut file) => {
-                            if let Err(_) = file.write_all(err_msg.as_bytes()) {
+                            if let Err(e) = file.write_all(err_msg.as_bytes()) {
                                 // If writing to redirected stderr fails, fall back to terminal
                                 eprint!("{}", err_msg);
                             }
@@ -75,6 +70,7 @@ pub fn run_cat_command(args: Vec<String>) {
                 } else {
                     eprint!("{}", err_msg);
                 }
+                has_error = true;
             }
         }
     }
@@ -83,8 +79,7 @@ pub fn run_cat_command(args: Vec<String>) {
 
     // Handle stdout output
     if let Some((path, append)) = output_path {
-        let clean_output_path = unquote_path(&path);
-        match open_file(Path::new(&clean_output_path), append) {
+        match open_file(Path::new(&path), append) {
             Ok(mut file) => {
                 let _ = file.write_all(joined.as_bytes());
             }
@@ -103,9 +98,8 @@ pub fn run_cat_command(args: Vec<String>) {
 fn open_file(path: &Path, append: bool) -> io::Result<File> {
     let mut options = OpenOptions::new();
     options.create(true);
-
     if append {
-        options.append(true);
+        options.append(true); // This should preserve existing content
     } else {
         options.write(true).truncate(true);
     }
