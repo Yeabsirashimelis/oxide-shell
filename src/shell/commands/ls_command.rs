@@ -4,7 +4,7 @@ use std::{
     path::Path,
 };
 
-use crate::shell::commands::echo_command::open_file;
+use crate::shell::commands::cat_command::open_file;
 
 pub fn run_ls_command(command: &str) {
     let parts: Vec<&str> = command.trim().split_whitespace().collect();
@@ -45,7 +45,6 @@ pub fn run_ls_command(command: &str) {
         i += 1;
     }
 
-    // Ensure files exist as you did previously
     if let Some((path, append)) = output_path {
         let _ = open_file(Path::new(path), append);
     }
