@@ -8,7 +8,7 @@ pub fn run_cat_command(args: Vec<String>) {
     let mut output_path: Option<(String, bool)> = None;
     let mut error_path: Option<(String, bool)> = None;
 
-    // Parse stdout redirection first
+    // Parse stdout
     if let Some(pos) = files.iter().position(|a| a == ">>" || a == "1>>") {
         if pos + 1 < files.len() {
             output_path = Some((files[pos + 1].clone(), true));
@@ -22,7 +22,7 @@ pub fn run_cat_command(args: Vec<String>) {
         }
     }
 
-    // Parse stderr redirection
+    // Parse stderr
     if let Some(pos) = files.iter().position(|a| a == "2>>") {
         if pos + 1 < files.len() {
             error_path = Some((files[pos + 1].clone(), true));
@@ -36,48 +36,39 @@ pub fn run_cat_command(args: Vec<String>) {
         }
     }
 
-    let mut total_content = Vec::new();
-
     for file_path in &files {
         let clean_path = unquote_path(file_path);
 
         match read_file(&clean_path) {
-            Ok(content) => total_content.push(content),
+            Ok(content) => {
+                if let Some((path, append)) = &output_path {
+                    if let Ok(mut f) = open_file(Path::new(path), *append) {
+                        let _ = f.write_all(content.as_bytes());
+                        let _ = f.flush();
+                        continue;
+                    }
+                } else {
+                    print!("{}", content);
+                    let _ = io::stdout().flush();
+                }
+            }
             Err(_) => {
                 let err_msg = format!("cat: {}: No such file or directory\n", clean_path);
-
-                // Write to redirected stderr file
                 if let Some((path, append)) = &error_path {
-                    if let Ok(mut file) = open_file(Path::new(path), *append) {
-                        let _ = file.write_all(err_msg.as_bytes());
-                        let _ = file.flush();
+                    if let Ok(mut f) = open_file(Path::new(path), *append) {
+                        let _ = f.write_all(err_msg.as_bytes());
+                        let _ = f.flush();
+                        continue;
                     }
                 }
-
-                // Also write to actual stderr
                 let _ = eprint!("{}", err_msg);
+                let _ = io::stderr().flush();
             }
         }
     }
-
-    let joined = total_content.join("");
-
-    // Write to stdout file if redirected
-    if let Some((path, append)) = output_path {
-        if let Ok(mut file) = open_file(Path::new(&path), append) {
-            let _ = file.write_all(joined.as_bytes());
-            let _ = file.flush();
-        } else if !joined.is_empty() {
-            // fallback to normal stdout if file fails
-            print!("{}", joined);
-        }
-    } else if !joined.is_empty() {
-        // no redirection → print to console
-        print!("{}", joined);
-    }
 }
 
-pub fn open_file(path: &Path, append: bool) -> std::io::Result<File> {
+pub fn open_file(path: &Path, append: bool) -> io::Result<File> {
     let mut options = OpenOptions::new();
     options.create(true);
     if append {
@@ -89,14 +80,15 @@ pub fn open_file(path: &Path, append: bool) -> std::io::Result<File> {
 }
 
 fn unquote_path(path: &str) -> String {
-    let mut s = path.trim().to_string();
-    if (s.starts_with('\'') && s.ends_with('\'')) || (s.starts_with('"') && s.ends_with('"')) {
-        s = s[1..s.len() - 1].to_string();
+    let s = path.trim();
+    if (s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\'')) {
+        s[1..s.len() - 1].to_string()
+    } else {
+        s.to_string()
     }
-    s
 }
 
-fn read_file(path: &str) -> Result<String, io::Error> {
+fn read_file(path: &str) -> io::Result<String> {
     let mut file = File::open(path)?;
     let mut content = String::new();
     file.read_to_string(&mut content)?;
