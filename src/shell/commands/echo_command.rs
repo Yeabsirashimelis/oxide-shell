@@ -39,8 +39,11 @@ pub fn run_echo_command(input: String) {
         text_part = parts[0].trim();
         output_path = Some((parts[1].trim(), false));
     }
-
-    let text_part = text_part.strip_prefix("echo ").unwrap_or(text_part).trim();
+    let text_part = text_part
+        .strip_prefix("echo")
+        .map(|s| s.trim_start())
+        .unwrap_or(text_part)
+        .trim();
 
     let message = text_part
         .strip_prefix('"')
