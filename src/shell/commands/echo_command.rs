@@ -69,12 +69,13 @@ pub fn run_echo_command(input: String) {
         let _ = open_file(Path::new(path), append).and_then(|mut f| writeln!(f, "{}", message));
     }
 
-    // FIX: Only print to stdout if no stdout redirection
+    // Only print to stdout if no stdout redirection
     // (stderr redirection doesn't affect stdout output)
     if output_path.is_none() {
         println!("{}", message);
     }
 }
+
 pub fn open_file(path: &Path, append: bool) -> std::io::Result<File> {
     let mut options = OpenOptions::new();
     options.create(true);

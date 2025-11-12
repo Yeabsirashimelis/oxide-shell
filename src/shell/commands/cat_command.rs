@@ -36,7 +36,7 @@ pub fn run_cat_command(args: Vec<String>) {
 
     // detect stderr overwrite
     if let Some(pos) = files.iter().position(|a| a == "2>") {
-        if pos + 1 < files.len() {
+        if pos + 1 < parts.len() {
             error_path = Some((files[pos + 1].clone(), false));
         }
         files.drain(pos..);
@@ -51,6 +51,7 @@ pub fn run_cat_command(args: Vec<String>) {
     }
 
     let mut total_content = Vec::new();
+    let mut has_error = false;
 
     for file_path in &files {
         let clean_path = unquote_path(file_path);
@@ -63,9 +64,11 @@ pub fn run_cat_command(args: Vec<String>) {
                 if let Some((path, append)) = &error_path {
                     let _ = open_file(Path::new(path), *append)
                         .and_then(|mut f| f.write_all(err_msg.as_bytes()));
+                    // When stderr is redirected, don't print to terminal
                 } else {
                     eprint!("{}", err_msg);
                 }
+                has_error = true;
             }
         }
     }
@@ -75,7 +78,8 @@ pub fn run_cat_command(args: Vec<String>) {
     if let Some((path, append)) = output_path {
         let _ =
             open_file(Path::new(&path), append).and_then(|mut f| f.write_all(joined.as_bytes()));
-    } else {
+    } else if !joined.is_empty() {
+        // Only print to stdout if we have content and no stdout redirection
         print!("{}", joined);
     }
 }

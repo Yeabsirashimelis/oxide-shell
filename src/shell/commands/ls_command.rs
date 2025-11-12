@@ -100,8 +100,9 @@ pub fn run_ls_command(command: &str) {
 
     if let Some((path, append)) = output_path {
         let _ = open_file(Path::new(path), append).and_then(|mut f| f.write_all(output.as_bytes()));
-    } else if error_path.is_none() {
-        // Only print to stdout if stderr is not redirected
+    } else {
+        // Always print to stdout if no stdout redirection
+        // (stderr redirection doesn't affect stdout)
         print!("{}", output);
     }
 }
