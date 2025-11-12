@@ -120,3 +120,5 @@ fn read_file(path: &str) -> Result<String, io::Error> {
     file.read_to_string(&mut content)?;
     Ok(content)
 }
+    file.read_to_string(&mut content)?;
+    Ok(content)
