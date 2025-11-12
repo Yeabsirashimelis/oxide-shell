@@ -45,6 +45,13 @@ pub fn run_ls_command(command: &str) {
         i += 1;
     }
 
+    if let Some((path, append)) = output_path {
+        let _ = open_file(Path::new(path), append);
+    }
+    if let Some((path, append)) = error_path {
+        let _ = open_file(Path::new(path), append);
+    }
+
     let path_obj = Path::new(dir_path);
 
     if !path_obj.exists() {
