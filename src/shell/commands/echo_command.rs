@@ -73,7 +73,7 @@ pub fn run_echo_command(input: String) {
         }
     }
 
-    // Only print to stdout if no stdout or stderr redirection exists
+    //Only print to stdout if no stdout or stderr redirection exists
     if output_path.is_none() && error_path.is_none() {
         println!("{}", message);
     }
