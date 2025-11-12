@@ -49,7 +49,7 @@ pub fn handle_command(cmd: Command) {
         Command::Exit(_) => {
             // handled in main loop
         }
-        Command::Echo(text) => run_echo_command(&text),
+        Command::Echo(text) => run_echo_command(text),
         Command::Type(cmd) => run_type_command(cmd),
         Command::PWD => run_pwd_command(),
         Command::CD(path) => run_cd_command(&path),
