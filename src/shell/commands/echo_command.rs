@@ -9,7 +9,7 @@ pub fn run_echo_command(input: String) {
     let mut output_path: Option<(&str, bool)> = None;
     let mut error_path: Option<(&str, bool)> = None;
 
-    //Detect stderr append (2>>)
+    // Detect stderr append (2>>)
     if input.contains("2>>") {
         let parts: Vec<&str> = input.splitn(2, "2>>").collect();
         text_part = parts[0].trim();
@@ -20,7 +20,7 @@ pub fn run_echo_command(input: String) {
         error_path = Some((parts[1].trim(), false));
     }
 
-    //Detect stdout append
+    // Detect stdout append
     if text_part.contains("1>>") {
         let parts: Vec<&str> = text_part.splitn(2, "1>>").collect();
         text_part = parts[0].trim();
@@ -42,33 +42,23 @@ pub fn run_echo_command(input: String) {
     let text_part = text_part.trim_start_matches("echo").trim();
     let message = text_part.trim_matches('\'');
 
-    //Handle stdout redirection
+    // Handle stdout redirection
     if let Some((path, append)) = output_path {
         let output_path = Path::new(path);
         if let Some(parent) = output_path.parent() {
             let _ = fs::create_dir_all(parent);
         }
-
-        match open_file(output_path, append) {
-            Ok(mut file) => {
-                let _ = writeln!(file, "{}", message);
-            }
-            Err(err) => eprintln!("echo: failed to open {}: {}", path, err),
-        }
+        let _ = open_file(output_path, append).and_then(|mut f| writeln!(f, "{}", message));
         return;
     }
 
-    //Handle stderr redirection
+    // Handle stderr redirection
     if let Some((path, append)) = error_path {
         let error_path = Path::new(path);
         if let Some(parent) = error_path.parent() {
             let _ = fs::create_dir_all(parent);
         }
-
-        if let Ok(mut f) = open_file(error_path, append) {
-            let _ = writeln!(f, "{}", message);
-        }
-        return;
+        let _ = open_file(error_path, append).and_then(|mut f| writeln!(f, "{}", message));
     }
 
     println!("{}", message);

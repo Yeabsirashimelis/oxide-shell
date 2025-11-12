@@ -1,5 +1,5 @@
 use std::{
-    fs::{self, File, OpenOptions},
+    fs::{File, OpenOptions},
     io::{self, Read, Write},
     path::Path,
 };
@@ -10,7 +10,7 @@ pub fn run_cat_command(args: Vec<String>) {
     let mut output_path: Option<(String, bool)> = None;
     let mut error_path: Option<(String, bool)> = None;
 
-    //detect stdout append
+    // detect stdout append
     if let Some(pos) = files.iter().position(|a| a == ">>" || a == "1>>") {
         if pos + 1 < files.len() {
             output_path = Some((files[pos + 1].clone(), true));
@@ -18,7 +18,7 @@ pub fn run_cat_command(args: Vec<String>) {
         files.drain(pos..);
     }
 
-    //detect stdout overwrite
+    // detect stdout overwrite
     if let Some(pos) = files.iter().position(|a| a == ">" || a == "1>") {
         if pos + 1 < files.len() {
             output_path = Some((files[pos + 1].clone(), false));
@@ -26,7 +26,7 @@ pub fn run_cat_command(args: Vec<String>) {
         files.drain(pos..);
     }
 
-    //detect stderr append
+    // detect stderr append
     if let Some(pos) = files.iter().position(|a| a == "2>>") {
         if pos + 1 < files.len() {
             error_path = Some((files[pos + 1].clone(), true));
@@ -34,7 +34,7 @@ pub fn run_cat_command(args: Vec<String>) {
         files.drain(pos..);
     }
 
-    //detect stderr overwrite
+    // detect stderr overwrite
     if let Some(pos) = files.iter().position(|a| a == "2>") {
         if pos + 1 < files.len() {
             error_path = Some((files[pos + 1].clone(), false));
@@ -42,19 +42,12 @@ pub fn run_cat_command(args: Vec<String>) {
         files.drain(pos..);
     }
 
+    // ✅ ensure files exist even if nothing is written yet
     if let Some((path, append)) = &output_path {
-        let p = Path::new(path);
-        if let Some(parent) = p.parent() {
-            let _ = fs::create_dir_all(parent);
-        }
-        let _ = open_file(p, *append);
+        let _ = open_file(Path::new(path), *append);
     }
     if let Some((path, append)) = &error_path {
-        let p = Path::new(path);
-        if let Some(parent) = p.parent() {
-            let _ = fs::create_dir_all(parent);
-        }
-        let _ = open_file(p, *append);
+        let _ = open_file(Path::new(path), *append);
     }
 
     let mut total_content = Vec::new();
@@ -68,8 +61,7 @@ pub fn run_cat_command(args: Vec<String>) {
                 let err_msg = format!("cat: {}: No such file or directory\n", clean_path);
 
                 if let Some((path, append)) = &error_path {
-                    let path_obj = Path::new(path);
-                    let _ = open_file(path_obj, *append)
+                    let _ = open_file(Path::new(path), *append)
                         .and_then(|mut f| f.write_all(err_msg.as_bytes()));
                 } else {
                     eprint!("{}", err_msg);
@@ -81,25 +73,8 @@ pub fn run_cat_command(args: Vec<String>) {
     let joined = total_content.join("");
 
     if let Some((path, append)) = output_path {
-        let path_obj = Path::new(&path);
-        if let Some(parent) = path_obj.parent() {
-            let _ = fs::create_dir_all(parent);
-        }
-
-        match open_file(path_obj, append) {
-            Ok(mut file) => {
-                let _ = file.write_all(joined.as_bytes());
-            }
-            Err(err) => {
-                let msg = format!("cat: cannot open {}: {}\n", path, err);
-                if let Some((err_path, append_err)) = error_path {
-                    let _ = open_file(Path::new(&err_path), append_err)
-                        .and_then(|mut f| f.write_all(msg.as_bytes()));
-                } else {
-                    eprint!("{}", msg);
-                }
-            }
-        }
+        let _ =
+            open_file(Path::new(&path), append).and_then(|mut f| f.write_all(joined.as_bytes()));
     } else {
         print!("{}", joined);
     }
@@ -107,7 +82,7 @@ pub fn run_cat_command(args: Vec<String>) {
 
 fn open_file(path: &Path, append: bool) -> io::Result<File> {
     let mut options = OpenOptions::new();
-    options.create(true);
+    options.create(true); // ✅ always create
     if append {
         options.append(true);
     } else {

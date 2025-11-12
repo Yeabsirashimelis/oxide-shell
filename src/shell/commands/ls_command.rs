@@ -87,27 +87,17 @@ pub fn run_ls_command(command: &str) {
     let output = entries.join("\n") + "\n";
 
     if let Some((path, append)) = output_path {
-        if let Err(err) = open_file(path, append).and_then(|mut f| f.write_all(output.as_bytes())) {
-            let err_msg = format!("ls: failed to write to '{}': {}\n", path, err);
-            if let Some((err_path, append_err)) = error_path {
-                let _ = open_file(err_path, append_err)
-                    .and_then(|mut f| f.write_all(err_msg.as_bytes()));
-            } else {
-                eprint!("{}", err_msg);
-            }
-        }
+        let _ = open_file(path, append).and_then(|mut f| f.write_all(output.as_bytes()));
     } else {
         print!("{}", output);
     }
 }
 
 fn open_file(path: &str, append: bool) -> std::io::Result<File> {
-    let mut options = OpenOptions::new();
-    options.create(true);
-    if append {
-        options.append(true);
-    } else {
-        options.write(true).truncate(true);
-    }
-    options.open(path)
+    OpenOptions::new()
+        .create(true)
+        .write(true)
+        .append(append)
+        .truncate(!append)
+        .open(path)
 }
