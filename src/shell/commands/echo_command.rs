@@ -1,8 +1,8 @@
-use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::Path;
 
 use crate::shell::commands::cat_command::open_file;
+
 pub fn run_echo_command(input: String) {
     let input = input.trim();
 
@@ -49,6 +49,7 @@ pub fn run_echo_command(input: String) {
         })
         .unwrap_or(text_part);
 
+    // Ensure files exist first
     if let Some((path, append)) = output_path {
         let _ = open_file(Path::new(path), append);
     }
@@ -56,17 +57,23 @@ pub fn run_echo_command(input: String) {
         let _ = open_file(Path::new(path), append);
     }
 
-    // Write to stdout file if it exists
+    // Write to stdout file if exists
     if let Some((path, append)) = output_path {
-        let _ = open_file(Path::new(path), append).and_then(|mut f| writeln!(f, "{}", message));
+        if let Ok(mut f) = open_file(Path::new(path), append) {
+            let _ = writeln!(f, "{}", message);
+            let _ = f.flush(); // flush to ensure content is saved
+        }
     }
 
-    // Write to stderr file if it exists
+    // Write to stderr file if exists
     if let Some((path, append)) = error_path {
-        let _ = open_file(Path::new(path), append).and_then(|mut f| writeln!(f, "{}", message));
+        if let Ok(mut f) = open_file(Path::new(path), append) {
+            let _ = writeln!(f, "{}", message);
+            let _ = f.flush(); // flush here as well
+        }
     }
 
-    // Print to stdout only if NO stderr redirection
+    // Only print to stdout if no stdout or stderr redirection exists
     if output_path.is_none() && error_path.is_none() {
         println!("{}", message);
     }
