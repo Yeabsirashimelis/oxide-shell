@@ -18,7 +18,7 @@ pub fn run_cat_command(args: Vec<String>) {
         }
     }
 
-    // detect stdout overwrite
+    //detect stdout overwrite
     if let Some(pos) = files.iter().position(|a| a == ">" || a == "1>") {
         if pos + 1 < files.len() {
             output_path = Some((files[pos + 1].clone(), false));
