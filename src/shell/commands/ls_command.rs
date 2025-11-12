@@ -102,9 +102,12 @@ pub fn run_ls_command(command: &str) {
 }
 
 fn open_file(path: &str, append: bool) -> std::io::Result<File> {
+    let mut options = OpenOptions::new();
+    options.create(true);
     if append {
-        OpenOptions::new().create(true).append(true).open(path)
+        options.append(true);
     } else {
-        File::create(path)
+        options.write(true).truncate(true);
     }
+    options.open(path)
 }

@@ -9,7 +9,7 @@ pub fn run_echo_command(input: String) {
     let mut output_path: Option<(&str, bool)> = None;
     let mut error_path: Option<(&str, bool)> = None;
 
-    // Detect stderr append (2>>)
+    //Detect stderr append (2>>)
     if input.contains("2>>") {
         let parts: Vec<&str> = input.splitn(2, "2>>").collect();
         text_part = parts[0].trim();
@@ -20,7 +20,7 @@ pub fn run_echo_command(input: String) {
         error_path = Some((parts[1].trim(), false));
     }
 
-    // Detect stdout append
+    //Detect stdout append
     if text_part.contains("1>>") {
         let parts: Vec<&str> = text_part.splitn(2, "1>>").collect();
         text_part = parts[0].trim();
@@ -42,7 +42,7 @@ pub fn run_echo_command(input: String) {
     let text_part = text_part.trim_start_matches("echo").trim();
     let message = text_part.trim_matches('\'');
 
-    // Handle stdout redirection
+    //Handle stdout redirection
     if let Some((path, append)) = output_path {
         let output_path = Path::new(path);
         if let Some(parent) = output_path.parent() {
@@ -58,22 +58,29 @@ pub fn run_echo_command(input: String) {
         return;
     }
 
-    // Handle stderr redirection
+    //Handle stderr redirection
     if let Some((path, append)) = error_path {
         let error_path = Path::new(path);
         if let Some(parent) = error_path.parent() {
             let _ = fs::create_dir_all(parent);
         }
-        let _ = open_file(error_path, append);
+
+        if let Ok(mut f) = open_file(error_path, append) {
+            let _ = writeln!(f, "{}", message);
+        }
+        return;
     }
 
     println!("{}", message);
 }
 
 fn open_file(path: &Path, append: bool) -> std::io::Result<File> {
+    let mut options = OpenOptions::new();
+    options.create(true);
     if append {
-        OpenOptions::new().create(true).append(true).open(path)
+        options.append(true);
     } else {
-        File::create(path)
+        options.write(true).truncate(true);
     }
+    options.open(path)
 }

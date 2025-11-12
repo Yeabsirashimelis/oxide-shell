@@ -10,7 +10,7 @@ pub fn run_cat_command(args: Vec<String>) {
     let mut output_path: Option<(String, bool)> = None;
     let mut error_path: Option<(String, bool)> = None;
 
-    // detect stdout append
+    //detect stdout append
     if let Some(pos) = files.iter().position(|a| a == ">>" || a == "1>>") {
         if pos + 1 < files.len() {
             output_path = Some((files[pos + 1].clone(), true));
@@ -18,7 +18,7 @@ pub fn run_cat_command(args: Vec<String>) {
         files.drain(pos..);
     }
 
-    // detect stdout overwrite
+    //detect stdout overwrite
     if let Some(pos) = files.iter().position(|a| a == ">" || a == "1>") {
         if pos + 1 < files.len() {
             output_path = Some((files[pos + 1].clone(), false));
@@ -26,7 +26,7 @@ pub fn run_cat_command(args: Vec<String>) {
         files.drain(pos..);
     }
 
-    // detect stderr append
+    //detect stderr append
     if let Some(pos) = files.iter().position(|a| a == "2>>") {
         if pos + 1 < files.len() {
             error_path = Some((files[pos + 1].clone(), true));
@@ -34,12 +34,27 @@ pub fn run_cat_command(args: Vec<String>) {
         files.drain(pos..);
     }
 
-    // detect stderr overwrite
+    //detect stderr overwrite
     if let Some(pos) = files.iter().position(|a| a == "2>") {
         if pos + 1 < files.len() {
             error_path = Some((files[pos + 1].clone(), false));
         }
         files.drain(pos..);
+    }
+
+    if let Some((path, append)) = &output_path {
+        let p = Path::new(path);
+        if let Some(parent) = p.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        let _ = open_file(p, *append);
+    }
+    if let Some((path, append)) = &error_path {
+        let p = Path::new(path);
+        if let Some(parent) = p.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        let _ = open_file(p, *append);
     }
 
     let mut total_content = Vec::new();
@@ -54,9 +69,6 @@ pub fn run_cat_command(args: Vec<String>) {
 
                 if let Some((path, append)) = &error_path {
                     let path_obj = Path::new(path);
-                    if let Some(parent) = path_obj.parent() {
-                        let _ = fs::create_dir_all(parent);
-                    }
                     let _ = open_file(path_obj, *append)
                         .and_then(|mut f| f.write_all(err_msg.as_bytes()));
                 } else {
@@ -94,11 +106,14 @@ pub fn run_cat_command(args: Vec<String>) {
 }
 
 fn open_file(path: &Path, append: bool) -> io::Result<File> {
+    let mut options = OpenOptions::new();
+    options.create(true);
     if append {
-        OpenOptions::new().create(true).append(true).open(path)
+        options.append(true);
     } else {
-        File::create(path)
+        options.write(true).truncate(true);
     }
+    options.open(path)
 }
 
 fn unquote_path(path: &str) -> String {
