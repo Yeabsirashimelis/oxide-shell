@@ -1,6 +1,6 @@
 mod cat_command;
 mod cd_command;
-pub mod echo_command;
+mod echo_command;
 mod external_command;
 mod ls_command;
 mod map_commands;
@@ -18,7 +18,7 @@ use crate::shell::commands::{
 
 pub enum Command {
     Exit(i32),
-    Echo(Vec<String>),
+    Echo(String),
     Unknown(String),
     Type(String),
     PWD,

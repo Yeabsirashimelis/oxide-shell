@@ -1,110 +1,78 @@
-use std::fs::{File, OpenOptions};
-use std::io::Write;
+use std::fs::OpenOptions;
+use std::io::{self, Write};
 use std::path::Path;
 
-/// Run echo command with support for stdout and stderr redirection
-pub fn run_echo_command(parts: Vec<String>) {
-    if parts.is_empty() {
-        return;
+use crate::shell::commands::cat_command::open_file;
+
+pub fn run_echo_command(input: String) {
+    let input = input.trim();
+
+    let mut text_part = input;
+    let mut output_path: Option<(&str, bool)> = None;
+    let mut error_path: Option<(&str, bool)> = None;
+
+    // Parse stderr redirection first
+    if input.contains("2>>") {
+        let parts: Vec<&str> = input.splitn(2, "2>>").collect();
+        text_part = parts[0].trim();
+        error_path = Some((parts[1].trim(), true));
+    } else if input.contains("2>") {
+        let parts: Vec<&str> = input.splitn(2, "2>").collect();
+        text_part = parts[0].trim();
+        error_path = Some((parts[1].trim(), false));
     }
 
-    // --- Detect stdout and stderr redirection ---
-    let mut stdout_path: Option<(String, bool)> = None;
-    let mut stderr_path: Option<(String, bool)> = None;
-
-    let mut filtered_parts = Vec::new();
-    let mut i = 0;
-
-    while i < parts.len() {
-        match parts[i].as_str() {
-            ">" | "1>" => {
-                if i + 1 < parts.len() {
-                    stdout_path = Some((parts[i + 1].clone(), false));
-                    i += 1; // skip filename
-                }
-            }
-            ">>" | "1>>" => {
-                if i + 1 < parts.len() {
-                    stdout_path = Some((parts[i + 1].clone(), true));
-                    i += 1;
-                }
-            }
-            "2>" => {
-                if i + 1 < parts.len() {
-                    stderr_path = Some((parts[i + 1].clone(), false));
-                    i += 1;
-                }
-            }
-            "2>>" => {
-                if i + 1 < parts.len() {
-                    stderr_path = Some((parts[i + 1].clone(), true));
-                    i += 1;
-                }
-            }
-            _ => filtered_parts.push(parts[i].clone()),
-        }
-        i += 1;
+    // Parse stdout redirection
+    if text_part.contains("1>>") {
+        let parts: Vec<&str> = text_part.splitn(2, "1>>").collect();
+        text_part = parts[0].trim();
+        output_path = Some((parts[1].trim(), true));
+    } else if text_part.contains(">>") {
+        let parts: Vec<&str> = text_part.splitn(2, ">>").collect();
+        text_part = parts[0].trim();
+        output_path = Some((parts[1].trim(), true));
+    } else if text_part.contains("1>") {
+        let parts: Vec<&str> = text_part.splitn(2, "1>").collect();
+        text_part = parts[0].trim();
+        output_path = Some((parts[1].trim(), false));
+    } else if text_part.contains('>') {
+        let parts: Vec<&str> = text_part.splitn(2, '>').collect();
+        text_part = parts[0].trim();
+        output_path = Some((parts[1].trim(), false));
     }
 
-    // --- Reconstruct the message ---
-    // Skip the first element "echo"
-    let message = if filtered_parts.len() > 1 {
-        filtered_parts[1..]
-            .iter()
-            .map(|s| strip_outer_quotes(s))
-            .collect::<Vec<_>>()
-            .join(" ")
-            + "\n"
-    } else {
-        "\n".to_string()
-    };
+    // Extract the message
+    let text_part = text_part.trim_start_matches("echo").trim();
+    let message = text_part
+        .strip_prefix('"')
+        .and_then(|s| s.strip_suffix('"'))
+        .or_else(|| {
+            text_part
+                .strip_prefix('\'')
+                .and_then(|s| s.strip_suffix('\''))
+        })
+        .unwrap_or(text_part);
 
-    // --- Handle stderr redirection first ---
-    if let Some((path, append)) = stderr_path {
-        if let Ok(mut f) = open_file(Path::new(&path), append) {
-            let _ = f.write_all(message.as_bytes());
+    // Write to stdout file if needed
+    if let Some((path, append)) = output_path {
+        if let Ok(mut f) = open_file(Path::new(path), append) {
+            let _ = writeln!(f, "{}", message);
             let _ = f.flush();
-        } else {
-            let _ = eprint!("{}", message);
         }
-        return; // do not print to stdout
     }
 
-    // --- Handle stdout redirection ---
-    if let Some((path, append)) = stdout_path {
-        if let Ok(mut f) = open_file(Path::new(&path), append) {
-            let _ = f.write_all(message.as_bytes());
+    // Write to stderr file if needed (and also emit to stderr)
+    if let Some((path, append)) = error_path {
+        if let Ok(mut f) = open_file(Path::new(path), append) {
+            let _ = writeln!(f, "{}", message);
             let _ = f.flush();
-        } else {
-            print!("{}", message);
         }
-        return;
+        // Output to stderr for the shell
+        let _ = writeln!(io::stderr(), "{}", message);
     }
 
-    // --- Normal echo ---
-    print!("{}", message);
-}
-
-/// Removes outer quotes ONLY if the whole string is quoted
-fn strip_outer_quotes(s: &str) -> String {
-    if s.len() >= 2 {
-        let first = s.chars().next().unwrap();
-        let last = s.chars().last().unwrap();
-        if (first == '"' && last == '"') || (first == '\'' && last == '\'') {
-            return s[1..s.len() - 1].to_string();
-        }
+    // Print normally if no redirection
+    if output_path.is_none() && error_path.is_none() {
+        println!("{}", message);
     }
-    s.to_string()
-}
-
-/// Open file for writing/appending
-fn open_file(path: &Path, append: bool) -> std::io::Result<File> {
-    let mut opts = OpenOptions::new();
-    opts.create(true);
-    if append {
-        opts.append(true);
-    } else {
-        opts.write(true).truncate(true);
-    }
-    opts.open(path)
 }

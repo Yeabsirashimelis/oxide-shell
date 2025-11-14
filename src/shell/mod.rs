@@ -7,8 +7,6 @@ mod parser;
 use commands::{handle_command, Command};
 use parser::parse_command;
 
-use crate::shell::commands::echo_command::run_echo_command;
-
 pub struct Shell;
 
 impl Shell {
@@ -20,26 +18,20 @@ impl Shell {
         let mut input = String::new();
 
         loop {
-            input.clear();
             print!("$ ");
             io::stdout().flush().unwrap();
 
-            if io::stdin().read_line(&mut input).is_err() {
-                continue;
-            }
-            let trimmed = input.trim();
-            if trimmed.is_empty() {
+            input.clear();
+            io::stdin().read_line(&mut input).unwrap();
+
+            if input.trim().is_empty() {
                 continue;
             }
 
-            if let Some(cmd) = parse_command(trimmed) {
-                match &cmd {
-                    Command::Exit(code) => process::exit(*code),
-                    Command::Echo(parts) => run_echo_command(parts.clone()),
-                    _ => handle_command(cmd),
-                }
-            } else {
-                println!("{}: command not found", trimmed);
+            match parse_command(&input) {
+                Some(Command::Exit(code)) => process::exit(code),
+                Some(cmd) => handle_command(cmd),
+                None => println!("{}: command not found", input.trim()),
             }
         }
     }

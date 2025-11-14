@@ -1,17 +1,18 @@
+use std::collections::HashMap;
+
 use super::commands::Command;
 use crate::shell::commands::{map_external_commands, CommandType};
-use std::collections::HashMap;
 
 pub fn parse_command(input: &str) -> Option<Command> {
     if input.trim().is_empty() {
         return None;
     }
 
-    // Tokenizer
     let mut parts: Vec<String> = Vec::new();
     let mut current = String::new();
     let mut in_single_quotes = false;
     let mut in_double_quotes = false;
+
     let mut chars = input.trim().chars().peekable();
 
     while let Some(c) = chars.next() {
@@ -19,7 +20,7 @@ pub fn parse_command(input: &str) -> Option<Command> {
             '\\' => {
                 if let Some(next_char) = chars.next() {
                     if in_single_quotes {
-                        current.push('\\');
+                        current.push('\\'); // literal in single quotes
                     }
                     if in_double_quotes && !"\\\"$`".contains(next_char) {
                         current.push('\\');
@@ -48,52 +49,57 @@ pub fn parse_command(input: &str) -> Option<Command> {
     if !current.is_empty() {
         parts.push(current);
     }
+
     if parts.is_empty() {
         return None;
     }
 
-    let (cmd, _) = parts.split_first().unwrap();
+    let (cmd, args_vec) = parts.split_first().unwrap();
+    let args = args_vec.join(" ");
 
     let mut external_commands: HashMap<String, CommandType> = HashMap::new();
     map_external_commands(&mut external_commands);
 
-    let mut cmd_to_check = cmd.to_string();
+    let mut cmd_to_check = String::from(cmd.as_str());
+
     #[cfg(windows)]
     {
         if !external_commands.contains_key(&cmd_to_check) {
-            let exe_cmd = format!("{}.exe", cmd);
-            if external_commands.contains_key(&exe_cmd) {
-                cmd_to_check = exe_cmd;
+            let cmd_with_exe = format!("{}.exe", cmd);
+            if external_commands.contains_key(&cmd_with_exe) {
+                cmd_to_check = cmd_with_exe.clone();
             }
-        }
-    }
-
-    // --- ECHO FIX ---
-    if cmd == "echo" {
-        let has_redirect = parts.iter().any(|p| p.contains('>'));
-        if has_redirect {
-            return Some(Command::Echo(parts.clone())); // Rust echo
-        } else {
-            return Some(Command::External(parts.clone())); // external /bin/echo
         }
     }
 
     match cmd.as_str() {
         "exit" => {
-            let code = parts
-                .get(1)
-                .and_then(|s| s.parse::<i32>().ok())
-                .unwrap_or(0);
+            let code = args.parse::<i32>().unwrap_or(0);
             Some(Command::Exit(code))
         }
-        "type" => Some(Command::Type(parts[1..].join(" "))),
+        "echo" => {
+            if args.contains('>') || args.contains("1>") {
+                Some(Command::Echo(args))
+            } else if external_commands.contains_key(&cmd_to_check) {
+                let args_vec: Vec<String> = parts.iter().map(|s| s.to_string()).collect();
+                Some(Command::External(args_vec))
+            } else {
+                // Fallback to Rust echo
+                Some(Command::Echo(args))
+            }
+        }
+        "type" => Some(Command::Type(args)),
         "pwd" => Some(Command::PWD),
-        "cd" => Some(Command::CD(parts.get(1).cloned().unwrap_or_default())),
-        "cat" => Some(Command::Cat(parts.clone())),
-        "ls" => Some(Command::Ls(parts[1..].join(" "))),
+        "cd" => Some(Command::CD(args)),
+        "cat" => {
+            let args_vec: Vec<String> = parts.iter().map(|s| s.to_string()).collect();
+            Some(Command::Cat(args_vec))
+        }
+        "ls" => Some(Command::Ls(args)),
         _ => {
             if external_commands.contains_key(&cmd_to_check) {
-                Some(Command::External(parts.clone()))
+                let args_vec: Vec<String> = parts.iter().map(|s| s.to_string()).collect();
+                Some(Command::External(args_vec))
             } else {
                 Some(Command::Unknown(cmd.to_string()))
             }
