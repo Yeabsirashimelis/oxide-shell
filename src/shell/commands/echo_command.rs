@@ -69,7 +69,8 @@ pub fn run_echo_command(input: String) {
             let _ = writeln!(f, "{}", message);
             let _ = f.flush();
         }
-        // Don't print to terminal when stderr is redirected
+        // STILL print to stderr (terminal) even when stderr is redirected to file
+        eprintln!("{}", message);
         return;
     }
 
