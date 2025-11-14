@@ -63,13 +63,14 @@ pub fn run_echo_command(input: String) {
         return;
     }
 
-    // Handle stderr redirection
+    // Handle stderr redirection - WRITE TO FILE BUT STILL PRINT TO TERMINAL
     if let Some((path, append)) = error_path {
         if let Ok(mut f) = open_file(Path::new(path), append) {
             let _ = writeln!(f, "{}", message);
             let _ = f.flush();
         }
-        // Don't print to terminal when stderr is redirected
+        // STILL print to terminal even when stderr is redirected to file
+        println!("{}", message);
         return;
     }
 
