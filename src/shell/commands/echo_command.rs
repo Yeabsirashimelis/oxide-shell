@@ -3,45 +3,36 @@ use std::io::Write;
 use std::path::Path;
 
 pub fn run_echo_command(raw: String) {
-    // --------- Split into tokens ---------
-    let parts = split_tokens(&raw);
+    // --- Proper shell-style tokenization ---
+    let mut parts = split_tokens(&raw);
 
     let mut stdout_path: Option<(String, bool)> = None;
     let mut stderr_path: Option<(String, bool)> = None;
 
-    let mut args = parts.clone();
-
-    // --------- Parse stderr redirection ---------
-    if let Some(pos) = args.iter().position(|a| a == "2>>") {
-        if pos + 1 < args.len() {
-            stderr_path = Some((args[pos + 1].clone(), true));
-            args.drain(pos..=pos + 1);
-        }
-    } else if let Some(pos) = args.iter().position(|a| a == "2>") {
-        if pos + 1 < args.len() {
-            stderr_path = Some((args[pos + 1].clone(), false));
-            args.drain(pos..=pos + 1);
-        }
+    // --- Parse stderr first ---
+    if let Some(pos) = parts.iter().position(|a| a == "2>>") {
+        stderr_path = Some((parts[pos + 1].clone(), true));
+        parts.drain(pos..=pos + 1);
+    } else if let Some(pos) = parts.iter().position(|a| a == "2>") {
+        stderr_path = Some((parts[pos + 1].clone(), false));
+        parts.drain(pos..=pos + 1);
     }
 
-    // --------- Parse stdout redirection ---------
-    if let Some(pos) = args.iter().position(|a| a == "1>>" || a == ">>") {
-        if pos + 1 < args.len() {
-            stdout_path = Some((args[pos + 1].clone(), true));
-            args.drain(pos..=pos + 1);
-        }
-    } else if let Some(pos) = args.iter().position(|a| a == "1>" || a == ">") {
-        if pos + 1 < args.len() {
-            stdout_path = Some((args[pos + 1].clone(), false));
-            args.drain(pos..=pos + 1);
-        }
+    // --- Parse stdout ---
+    if let Some(pos) = parts.iter().position(|a| a == "1>>" || a == ">>") {
+        stdout_path = Some((parts[pos + 1].clone(), true));
+        parts.drain(pos..=pos + 1);
+    } else if let Some(pos) = parts.iter().position(|a| a == "1>" || a == ">") {
+        stdout_path = Some((parts[pos + 1].clone(), false));
+        parts.drain(pos..=pos + 1);
     }
 
-    // --------- Build the output ---------
-    let joined = args.join(" ");
-    let output = remove_quotes(&joined) + "\n";
+    // --- Reconstruct echo output text ---
+    let text = parts.join(" ");
+    let cleaned = strip_outer_quotes(&text);
+    let output = format!("{}\n", cleaned);
 
-    // --------- Handle stderr redirection ---------
+    // --- Handle stderr redirection ---
     if let Some((path, append)) = stderr_path {
         if let Ok(mut file) = open_file(Path::new(&path), append) {
             let _ = file.write_all(output.as_bytes());
@@ -53,7 +44,7 @@ pub fn run_echo_command(raw: String) {
         }
     }
 
-    // --------- Handle stdout redirection ---------
+    // --- Handle stdout redirection ---
     if let Some((path, append)) = stdout_path {
         if let Ok(mut file) = open_file(Path::new(&path), append) {
             let _ = file.write_all(output.as_bytes());
@@ -65,47 +56,60 @@ pub fn run_echo_command(raw: String) {
         }
     }
 
-    // --------- Normal echo ---------
+    // --- Normal echo ---
     print!("{}", output);
 }
 
+/// Proper shell-like tokenizer that preserves quoted strings as single tokens.
 fn split_tokens(input: &str) -> Vec<String> {
-    let mut parts = vec![];
+    let mut tokens = Vec::new();
     let mut current = String::new();
+
+    let mut chars = input.chars().peekable();
     let mut in_quotes = false;
     let mut quote_char = ' ';
 
-    for c in input.chars() {
-        if (c == '"' || c == '\'') && !in_quotes {
-            in_quotes = true;
-            quote_char = c;
+    while let Some(c) = chars.next() {
+        if in_quotes {
             current.push(c);
-        } else if in_quotes && c == quote_char {
-            in_quotes = false;
-            current.push(c);
-        } else if c.is_whitespace() && !in_quotes {
-            if !current.is_empty() {
-                parts.push(current.clone());
-                current.clear();
+            if c == quote_char {
+                in_quotes = false;
             }
         } else {
-            current.push(c);
+            match c {
+                '"' | '\'' => {
+                    in_quotes = true;
+                    quote_char = c;
+                    current.push(c);
+                }
+                ' ' | '\t' => {
+                    if !current.is_empty() {
+                        tokens.push(current.clone());
+                        current.clear();
+                    }
+                }
+                _ => current.push(c),
+            }
         }
     }
 
     if !current.is_empty() {
-        parts.push(current);
+        tokens.push(current);
     }
 
-    parts
+    tokens
 }
 
-fn remove_quotes(s: &str) -> String {
-    if (s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\'')) {
-        s[1..s.len() - 1].to_string()
-    } else {
-        s.to_string()
+/// Removes outer quotes ONLY if the entire string is quoted
+fn strip_outer_quotes(s: &str) -> String {
+    if s.len() >= 2 {
+        let first = s.chars().next().unwrap();
+        let last = s.chars().last().unwrap();
+        if (first == '"' && last == '"') || (first == '\'' && last == '\'') {
+            return s[1..s.len() - 1].to_string();
+        }
     }
+    s.to_string()
 }
 
 fn open_file(path: &Path, append: bool) -> std::io::Result<File> {
