@@ -2,13 +2,44 @@ use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::Path;
 
+// --- Utility Functions ---
+// These should be accessible by all command modules (like ls)
+
+pub fn open_file(path: &Path, append: bool) -> std::io::Result<File> {
+    let mut options = OpenOptions::new();
+    options.create(true);
+    if append {
+        options.append(true);
+    } else {
+        options.write(true).truncate(true);
+    }
+    options.open(path)
+}
+
+fn unquote_path(path: &str) -> String {
+    let mut s = path.trim().to_string();
+    if (s.starts_with('\'') && s.ends_with('\'')) || (s.starts_with('"') && s.ends_with('"')) {
+        s = s[1..s.len() - 1].to_string();
+    }
+    s
+}
+
+fn read_file(path: &str) -> Result<String, io::Error> {
+    let mut file = File::open(path)?;
+    let mut content = String::new();
+    file.read_to_string(&mut content)?;
+    Ok(content)
+}
+
+// --- Main Command Logic ---
+
 pub fn run_cat_command(args: Vec<String>) {
     let mut files: Vec<String> = args.into_iter().skip(1).collect();
 
     let mut output_path: Option<(String, bool)> = None;
     let mut error_path: Option<(String, bool)> = None;
 
-    // Parse stdout redirection first
+    // Parse stdout redirection
     if let Some(pos) = files.iter().position(|a| a == ">>" || a == "1>>") {
         if pos + 1 < files.len() {
             output_path = Some((files[pos + 1].clone(), true));
@@ -75,30 +106,4 @@ pub fn run_cat_command(args: Vec<String>) {
         // no redirection → print to console
         print!("{}", joined);
     }
-}
-
-pub fn open_file(path: &Path, append: bool) -> std::io::Result<File> {
-    let mut options = OpenOptions::new();
-    options.create(true);
-    if append {
-        options.append(true);
-    } else {
-        options.write(true).truncate(true);
-    }
-    options.open(path)
-}
-
-fn unquote_path(path: &str) -> String {
-    let mut s = path.trim().to_string();
-    if (s.starts_with('\'') && s.ends_with('\'')) || (s.starts_with('"') && s.ends_with('"')) {
-        s = s[1..s.len() - 1].to_string();
-    }
-    s
-}
-
-fn read_file(path: &str) -> Result<String, io::Error> {
-    let mut file = File::open(path)?;
-    let mut content = String::new();
-    file.read_to_string(&mut content)?;
-    Ok(content)
 }
