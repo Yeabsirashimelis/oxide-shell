@@ -8,11 +8,11 @@ pub fn parse_command(input: &str) -> Option<Command> {
         return None;
     }
 
+    // --- TOKENIZER (kept the same) ---
     let mut parts: Vec<String> = Vec::new();
     let mut current = String::new();
     let mut in_single_quotes = false;
     let mut in_double_quotes = false;
-
     let mut chars = input.trim().chars().peekable();
 
     while let Some(c) = chars.next() {
@@ -20,7 +20,7 @@ pub fn parse_command(input: &str) -> Option<Command> {
             '\\' => {
                 if let Some(next_char) = chars.next() {
                     if in_single_quotes {
-                        current.push('\\'); // literal in single quotes
+                        current.push('\\');
                     }
                     if in_double_quotes && !"\\\"$`".contains(next_char) {
                         current.push('\\');
@@ -54,52 +54,60 @@ pub fn parse_command(input: &str) -> Option<Command> {
         return None;
     }
 
-    let (cmd, args_vec) = parts.split_first().unwrap();
-    let args = args_vec.join(" ");
+    let (cmd, _) = parts.split_first().unwrap();
 
     let mut external_commands: HashMap<String, CommandType> = HashMap::new();
     map_external_commands(&mut external_commands);
 
-    let mut cmd_to_check = String::from(cmd.as_str());
+    let mut cmd_to_check = cmd.to_string();
 
     #[cfg(windows)]
     {
         if !external_commands.contains_key(&cmd_to_check) {
-            let cmd_with_exe = format!("{}.exe", cmd);
-            if external_commands.contains_key(&cmd_with_exe) {
-                cmd_to_check = cmd_with_exe.clone();
+            let exe_cmd = format!("{}.exe", cmd);
+            if external_commands.contains_key(&exe_cmd) {
+                cmd_to_check = exe_cmd;
             }
         }
     }
 
+    // -------- ECHO FIX BELOW --------
+    if cmd == "echo" {
+        let has_redirect = parts.iter().any(|p| p.contains('>'));
+
+        if has_redirect {
+            // Use RUST echo implementation
+            return Some(Command::Echo(parts.clone()));
+        } else {
+            // Use external /bin/echo
+            return Some(Command::External(parts.clone()));
+        }
+    }
+    // --------------------------------
+
     match cmd.as_str() {
         "exit" => {
+            let args = parts.get(1).cloned().unwrap_or_default();
             let code = args.parse::<i32>().unwrap_or(0);
             Some(Command::Exit(code))
         }
-        "echo" => {
-            if args.contains('>') || args.contains("1>") {
-                Some(Command::Echo(args))
-            } else if external_commands.contains_key(&cmd_to_check) {
-                let args_vec: Vec<String> = parts.iter().map(|s| s.to_string()).collect();
-                Some(Command::External(args_vec))
-            } else {
-                // Fallback to Rust echo
-                Some(Command::Echo(args))
-            }
+        "type" => {
+            let args = parts[1..].join(" ");
+            Some(Command::Type(args))
         }
-        "type" => Some(Command::Type(args)),
         "pwd" => Some(Command::PWD),
-        "cd" => Some(Command::CD(args)),
-        "cat" => {
-            let args_vec: Vec<String> = parts.iter().map(|s| s.to_string()).collect();
-            Some(Command::Cat(args_vec))
+        "cd" => {
+            let args = parts.get(1).cloned().unwrap_or_default();
+            Some(Command::CD(args))
         }
-        "ls" => Some(Command::Ls(args)),
+        "cat" => Some(Command::Cat(parts.clone())),
+        "ls" => {
+            let args = parts[1..].join(" ");
+            Some(Command::Ls(args))
+        }
         _ => {
             if external_commands.contains_key(&cmd_to_check) {
-                let args_vec: Vec<String> = parts.iter().map(|s| s.to_string()).collect();
-                Some(Command::External(args_vec))
+                Some(Command::External(parts.clone()))
             } else {
                 Some(Command::Unknown(cmd.to_string()))
             }

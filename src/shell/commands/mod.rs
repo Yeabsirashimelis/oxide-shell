@@ -18,7 +18,7 @@ use crate::shell::commands::{
 
 pub enum Command {
     Exit(i32),
-    Echo(String),
+    Echo(Vec<String>),
     Unknown(String),
     Type(String),
     PWD,

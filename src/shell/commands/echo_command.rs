@@ -2,105 +2,86 @@ use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::Path;
 
-pub fn run_echo_command(raw: String) {
-    // --- Proper shell-style tokenization ---
-    let mut parts = split_tokens(&raw);
+/// Run echo command with support for stdout and stderr redirection
+pub fn run_echo_command(parts: Vec<String>) {
+    if parts.is_empty() {
+        return;
+    }
 
+    // --- Detect stdout and stderr redirection ---
     let mut stdout_path: Option<(String, bool)> = None;
     let mut stderr_path: Option<(String, bool)> = None;
 
-    // --- Parse stderr first ---
-    if let Some(pos) = parts.iter().position(|a| a == "2>>") {
-        stderr_path = Some((parts[pos + 1].clone(), true));
-        parts.drain(pos..=pos + 1);
-    } else if let Some(pos) = parts.iter().position(|a| a == "2>") {
-        stderr_path = Some((parts[pos + 1].clone(), false));
-        parts.drain(pos..=pos + 1);
-    }
+    let mut filtered_parts = Vec::new();
+    let mut i = 0;
 
-    // --- Parse stdout ---
-    if let Some(pos) = parts.iter().position(|a| a == "1>>" || a == ">>") {
-        stdout_path = Some((parts[pos + 1].clone(), true));
-        parts.drain(pos..=pos + 1);
-    } else if let Some(pos) = parts.iter().position(|a| a == "1>" || a == ">") {
-        stdout_path = Some((parts[pos + 1].clone(), false));
-        parts.drain(pos..=pos + 1);
-    }
-
-    // --- Reconstruct echo output text ---
-    let text = parts.join(" ");
-    let cleaned = strip_outer_quotes(&text);
-    let output = format!("{}\n", cleaned);
-
-    // --- Handle stderr redirection ---
-    if let Some((path, append)) = stderr_path {
-        if let Ok(mut file) = open_file(Path::new(&path), append) {
-            let _ = file.write_all(output.as_bytes());
-            let _ = file.flush();
-            return;
-        } else {
-            eprint!("{}", output);
-            return;
+    while i < parts.len() {
+        match parts[i].as_str() {
+            ">" | "1>" => {
+                if i + 1 < parts.len() {
+                    stdout_path = Some((parts[i + 1].clone(), false));
+                    i += 1; // skip filename
+                }
+            }
+            ">>" | "1>>" => {
+                if i + 1 < parts.len() {
+                    stdout_path = Some((parts[i + 1].clone(), true));
+                    i += 1;
+                }
+            }
+            "2>" => {
+                if i + 1 < parts.len() {
+                    stderr_path = Some((parts[i + 1].clone(), false));
+                    i += 1;
+                }
+            }
+            "2>>" => {
+                if i + 1 < parts.len() {
+                    stderr_path = Some((parts[i + 1].clone(), true));
+                    i += 1;
+                }
+            }
+            _ => filtered_parts.push(parts[i].clone()),
         }
+        i += 1;
+    }
+
+    // --- Reconstruct the message ---
+    // Skip the first element "echo"
+    let message = filtered_parts[1..]
+        .iter()
+        .map(|s| strip_outer_quotes(s))
+        .collect::<Vec<_>>()
+        .join(" ")
+        + "\n";
+
+    // --- Handle stderr redirection first ---
+    if let Some((path, append)) = stderr_path {
+        if let Ok(mut f) = open_file(Path::new(&path), append) {
+            let _ = f.write_all(message.as_bytes());
+            let _ = f.flush();
+        } else {
+            let _ = eprint!("{}", message);
+        }
+        return; // do not print to stdout
     }
 
     // --- Handle stdout redirection ---
     if let Some((path, append)) = stdout_path {
-        if let Ok(mut file) = open_file(Path::new(&path), append) {
-            let _ = file.write_all(output.as_bytes());
-            let _ = file.flush();
-            return;
+        if let Ok(mut f) = open_file(Path::new(&path), append) {
+            let _ = f.write_all(message.as_bytes());
+            let _ = f.flush();
         } else {
-            print!("{}", output);
-            return;
+            print!("{}", message);
         }
+        return;
     }
 
     // --- Normal echo ---
-    print!("{}", output);
+    print!("{}", message);
 }
 
-/// Proper shell-like tokenizer that preserves quoted strings as single tokens.
-fn split_tokens(input: &str) -> Vec<String> {
-    let mut tokens = Vec::new();
-    let mut current = String::new();
-
-    let mut chars = input.chars().peekable();
-    let mut in_quotes = false;
-    let mut quote_char = ' ';
-
-    while let Some(c) = chars.next() {
-        if in_quotes {
-            current.push(c);
-            if c == quote_char {
-                in_quotes = false;
-            }
-        } else {
-            match c {
-                '"' | '\'' => {
-                    in_quotes = true;
-                    quote_char = c;
-                    current.push(c);
-                }
-                ' ' | '\t' => {
-                    if !current.is_empty() {
-                        tokens.push(current.clone());
-                        current.clear();
-                    }
-                }
-                _ => current.push(c),
-            }
-        }
-    }
-
-    if !current.is_empty() {
-        tokens.push(current);
-    }
-
-    tokens
-}
-
-/// Removes outer quotes ONLY if the entire string is quoted
+/// Removes outer quotes ONLY if the whole string is quoted
 fn strip_outer_quotes(s: &str) -> String {
     if s.len() >= 2 {
         let first = s.chars().next().unwrap();
@@ -112,6 +93,7 @@ fn strip_outer_quotes(s: &str) -> String {
     s.to_string()
 }
 
+/// Open file for writing/appending
 fn open_file(path: &Path, append: bool) -> std::io::Result<File> {
     let mut opts = OpenOptions::new();
     opts.create(true);
