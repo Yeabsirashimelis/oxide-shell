@@ -74,6 +74,6 @@ pub fn run_echo_command(input: String) {
         return;
     }
 
-    // Print normally if no redirection
+    // Print normally if no redirectionn
     println!("{}", message);
 }
