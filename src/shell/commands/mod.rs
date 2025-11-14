@@ -1,6 +1,6 @@
 mod cat_command;
 mod cd_command;
-mod echo_command;
+pub mod echo_command;
 mod external_command;
 mod ls_command;
 mod map_commands;

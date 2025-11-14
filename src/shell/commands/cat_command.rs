@@ -2,16 +2,15 @@ use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::Path;
 
+/// Run the `cat` command with stdout/stderr redirection support
 pub fn run_cat_command(args: Vec<String>) {
-    // args[0] = "cat", remaining are actual args
+    // args[0] = "cat", remaining are actual filenames and redirections
     let mut files: Vec<String> = args.into_iter().skip(1).collect();
 
-    let mut output_path: Option<(String, bool)> = None; // (path, append)
-    let mut error_path: Option<(String, bool)> = None; // (path, append)
+    let mut output_path: Option<(String, bool)> = None;
+    let mut error_path: Option<(String, bool)> = None;
 
-    // ------------------------------
-    // Parse STDERR redirections first
-    // ------------------------------
+    // ---- Parse stderr redirection first ----
     if let Some(pos) = files.iter().position(|a| a == "2>>") {
         if pos + 1 < files.len() {
             error_path = Some((files[pos + 1].clone(), true));
@@ -24,9 +23,7 @@ pub fn run_cat_command(args: Vec<String>) {
         }
     }
 
-    // ------------------------------
-    // Parse STDOUT redirection second
-    // ------------------------------
+    // ---- Parse stdout redirection second ----
     if let Some(pos) = files.iter().position(|a| a == "1>>" || a == ">>") {
         if pos + 1 < files.len() {
             output_path = Some((files[pos + 1].clone(), true));
@@ -39,18 +36,13 @@ pub fn run_cat_command(args: Vec<String>) {
         }
     }
 
-    // After removing redirection tokens, remaining entries MUST be the filenames for cat
     let mut all_content: Vec<String> = Vec::new();
 
-    // ------------------------------
-    // Read all input files
-    // ------------------------------
     for file_arg in &files {
         let clean_path = unquote_path(file_arg);
 
         match read_file(&clean_path) {
             Ok(content) => all_content.push(content),
-
             Err(_) => {
                 let msg = format!("cat: {}: No such file or directory\n", clean_path);
 
@@ -68,19 +60,15 @@ pub fn run_cat_command(args: Vec<String>) {
 
     let final_output = all_content.join("");
 
-    // ------------------------------
-    // Output STDOUT (normal or redirected)
-    // ------------------------------
+    // Write to stdout if redirected, else print normally
     if let Some((out_file, append)) = output_path {
         if let Ok(mut f) = open_file(Path::new(&out_file), append) {
             let _ = f.write_all(final_output.as_bytes());
             let _ = f.flush();
         } else {
-            // fallback: print to console if file cannot be opened
             print!("{}", final_output);
         }
     } else {
-        // No redirection → print normally
         print!("{}", final_output);
     }
 }

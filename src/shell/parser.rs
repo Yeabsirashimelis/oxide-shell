@@ -1,14 +1,13 @@
-use std::collections::HashMap;
-
 use super::commands::Command;
 use crate::shell::commands::{map_external_commands, CommandType};
+use std::collections::HashMap;
 
 pub fn parse_command(input: &str) -> Option<Command> {
     if input.trim().is_empty() {
         return None;
     }
 
-    // --- TOKENIZER (kept the same) ---
+    // Tokenizer
     let mut parts: Vec<String> = Vec::new();
     let mut current = String::new();
     let mut in_single_quotes = false;
@@ -49,7 +48,6 @@ pub fn parse_command(input: &str) -> Option<Command> {
     if !current.is_empty() {
         parts.push(current);
     }
-
     if parts.is_empty() {
         return None;
     }
@@ -60,7 +58,6 @@ pub fn parse_command(input: &str) -> Option<Command> {
     map_external_commands(&mut external_commands);
 
     let mut cmd_to_check = cmd.to_string();
-
     #[cfg(windows)]
     {
         if !external_commands.contains_key(&cmd_to_check) {
@@ -71,40 +68,29 @@ pub fn parse_command(input: &str) -> Option<Command> {
         }
     }
 
-    // -------- ECHO FIX BELOW --------
+    // --- ECHO FIX ---
     if cmd == "echo" {
         let has_redirect = parts.iter().any(|p| p.contains('>'));
-
         if has_redirect {
-            // Use RUST echo implementation
-            return Some(Command::Echo(parts.clone()));
+            return Some(Command::Echo(parts.clone())); // Rust echo
         } else {
-            // Use external /bin/echo
-            return Some(Command::External(parts.clone()));
+            return Some(Command::External(parts.clone())); // external /bin/echo
         }
     }
-    // --------------------------------
 
     match cmd.as_str() {
         "exit" => {
-            let args = parts.get(1).cloned().unwrap_or_default();
-            let code = args.parse::<i32>().unwrap_or(0);
+            let code = parts
+                .get(1)
+                .and_then(|s| s.parse::<i32>().ok())
+                .unwrap_or(0);
             Some(Command::Exit(code))
         }
-        "type" => {
-            let args = parts[1..].join(" ");
-            Some(Command::Type(args))
-        }
+        "type" => Some(Command::Type(parts[1..].join(" "))),
         "pwd" => Some(Command::PWD),
-        "cd" => {
-            let args = parts.get(1).cloned().unwrap_or_default();
-            Some(Command::CD(args))
-        }
+        "cd" => Some(Command::CD(parts.get(1).cloned().unwrap_or_default())),
         "cat" => Some(Command::Cat(parts.clone())),
-        "ls" => {
-            let args = parts[1..].join(" ");
-            Some(Command::Ls(args))
-        }
+        "ls" => Some(Command::Ls(parts[1..].join(" "))),
         _ => {
             if external_commands.contains_key(&cmd_to_check) {
                 Some(Command::External(parts.clone()))
