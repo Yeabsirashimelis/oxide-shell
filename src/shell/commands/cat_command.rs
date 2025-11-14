@@ -3,12 +3,15 @@ use std::io::{self, Read, Write};
 use std::path::Path;
 
 pub fn run_cat_command(args: Vec<String>) {
+    // args[0] = "cat", remaining are actual args
     let mut files: Vec<String> = args.into_iter().skip(1).collect();
 
-    let mut output_path: Option<(String, bool)> = None;
-    let mut error_path: Option<(String, bool)> = None;
+    let mut output_path: Option<(String, bool)> = None; // (path, append)
+    let mut error_path: Option<(String, bool)> = None; // (path, append)
 
-    // ---- Parse stderr redirection FIRST ----
+    // ------------------------------
+    // Parse STDERR redirections first
+    // ------------------------------
     if let Some(pos) = files.iter().position(|a| a == "2>>") {
         if pos + 1 < files.len() {
             error_path = Some((files[pos + 1].clone(), true));
@@ -21,7 +24,9 @@ pub fn run_cat_command(args: Vec<String>) {
         }
     }
 
-    // ---- Parse stdout redirection AFTER stderr ----
+    // ------------------------------
+    // Parse STDOUT redirection second
+    // ------------------------------
     if let Some(pos) = files.iter().position(|a| a == "1>>" || a == ">>") {
         if pos + 1 < files.len() {
             output_path = Some((files[pos + 1].clone(), true));
@@ -34,70 +39,74 @@ pub fn run_cat_command(args: Vec<String>) {
         }
     }
 
-    let mut total_content = Vec::new();
+    // After removing redirection tokens, remaining entries MUST be the filenames for cat
+    let mut all_content: Vec<String> = Vec::new();
 
-    for file_path in &files {
-        let clean_path = unquote_path(file_path);
+    // ------------------------------
+    // Read all input files
+    // ------------------------------
+    for file_arg in &files {
+        let clean_path = unquote_path(file_arg);
 
         match read_file(&clean_path) {
-            Ok(content) => total_content.push(content),
+            Ok(content) => all_content.push(content),
 
             Err(_) => {
-                let err_msg = format!("cat: {}: No such file or directory\n", clean_path);
+                let msg = format!("cat: {}: No such file or directory\n", clean_path);
 
-                // If stderr redirected → write ONLY to the file.
-                if let Some((path, append)) = &error_path {
-                    if let Ok(mut file) = open_file(Path::new(path), *append) {
-                        let _ = file.write_all(err_msg.as_bytes());
-                        let _ = file.flush();
+                if let Some((err_file, append)) = &error_path {
+                    if let Ok(mut f) = open_file(Path::new(err_file), *append) {
+                        let _ = f.write_all(msg.as_bytes());
+                        let _ = f.flush();
                     }
                 } else {
-                    // Otherwise print normally
-                    eprint!("{}", err_msg);
+                    eprint!("{}", msg);
                 }
             }
         }
     }
 
-    let joined = total_content.join("");
+    let final_output = all_content.join("");
 
-    // Write to stdout file if redirected
-    if let Some((path, append)) = output_path {
-        if let Ok(mut file) = open_file(Path::new(&path), append) {
-            let _ = file.write_all(joined.as_bytes());
-            let _ = file.flush();
-        } else if !joined.is_empty() {
-            // fallback to normal stdout if file fails
-            print!("{}", joined);
+    // ------------------------------
+    // Output STDOUT (normal or redirected)
+    // ------------------------------
+    if let Some((out_file, append)) = output_path {
+        if let Ok(mut f) = open_file(Path::new(&out_file), append) {
+            let _ = f.write_all(final_output.as_bytes());
+            let _ = f.flush();
+        } else {
+            // fallback: print to console if file cannot be opened
+            print!("{}", final_output);
         }
-    } else if !joined.is_empty() {
-        // no redirection → print to console
-        print!("{}", joined);
+    } else {
+        // No redirection → print normally
+        print!("{}", final_output);
     }
 }
 
 pub fn open_file(path: &Path, append: bool) -> std::io::Result<File> {
-    let mut options = OpenOptions::new();
-    options.create(true);
+    let mut opts = OpenOptions::new();
+    opts.create(true);
     if append {
-        options.append(true);
+        opts.append(true);
     } else {
-        options.write(true).truncate(true);
+        opts.write(true).truncate(true);
     }
-    options.open(path)
+    opts.open(path)
 }
 
 fn unquote_path(path: &str) -> String {
-    let mut s = path.trim().to_string();
-    if (s.starts_with('\'') && s.ends_with('\'')) || (s.starts_with('"') && s.ends_with('"')) {
-        s = s[1..s.len() - 1].to_string();
+    let mut p = path.trim().to_string();
+    if (p.starts_with('"') && p.ends_with('"')) || (p.starts_with('\'') && p.ends_with('\'')) {
+        p = p[1..p.len() - 1].to_string();
     }
-    s
+    p
 }
 
 fn read_file(path: &str) -> Result<String, io::Error> {
-    let mut file = File::open(path)?;
-    let mut content = String::new();
-    file.read_to_string(&mut content)?;
-    Ok(content)
+    let mut f = File::open(path)?;
+    let mut s = String::new();
+    f.read_to_string(&mut s)?;
+    Ok(s)
 }
