@@ -8,101 +8,97 @@ pub fn run_cat_command(args: Vec<String>) {
     let mut output_path: Option<(String, bool)> = None;
     let mut error_path: Option<(String, bool)> = None;
 
-    // Parse redirections more carefully
-    let mut i = 0;
-    while i < files.len() {
-        match files[i].as_str() {
-            "2>>" => {
-                if i + 1 < files.len() {
-                    error_path = Some((files[i + 1].clone(), true));
-                    files.drain(i..=i + 1);
-                    continue;
-                }
-            }
-            "2>" => {
-                if i + 1 < files.len() {
-                    error_path = Some((files[i + 1].clone(), false));
-                    files.drain(i..=i + 1);
-                    continue;
-                }
-            }
-            ">>" | "1>>" => {
-                if i + 1 < files.len() {
-                    output_path = Some((files[i + 1].clone(), true));
-                    files.drain(i..=i + 1);
-                    continue;
-                }
-            }
-            ">" | "1>" => {
-                if i + 1 < files.len() {
-                    output_path = Some((files[i + 1].clone(), false));
-                    files.drain(i..=i + 1);
-                    continue;
-                }
-            }
-            _ => {}
+    // Parse stdout redirection first
+    if let Some(pos) = files.iter().position(|a| a == ">>" || a == "1>>") {
+        if pos + 1 < files.len() {
+            output_path = Some((files[pos + 1].clone(), true));
+            files.drain(pos..=pos + 1);
         }
-        i += 1;
+    }
+    if let Some(pos) = files.iter().position(|a| a == ">" || a == "1>") {
+        if pos + 1 < files.len() {
+            output_path = Some((files[pos + 1].clone(), false));
+            files.drain(pos..=pos + 1);
+        }
     }
 
-    let mut all_content: Vec<String> = Vec::new();
-    let mut has_error = false;
+    // Parse stderr redirection
+    if let Some(pos) = files.iter().position(|a| a == "2>>") {
+        if pos + 1 < files.len() {
+            error_path = Some((files[pos + 1].clone(), true));
+            files.drain(pos..=pos + 1);
+        }
+    }
+    if let Some(pos) = files.iter().position(|a| a == "2>") {
+        if pos + 1 < files.len() {
+            error_path = Some((files[pos + 1].clone(), false));
+            files.drain(pos..=pos + 1);
+        }
+    }
 
-    for file_arg in &files {
-        let clean_path = unquote_path(file_arg);
+    let mut total_content = Vec::new();
+
+    for file_path in &files {
+        let clean_path = unquote_path(file_path);
 
         match read_file(&clean_path) {
-            Ok(content) => all_content.push(content),
+            Ok(content) => total_content.push(content),
             Err(_) => {
-                let msg = format!("cat: {}: No such file or directory\n", clean_path);
+                let err_msg = format!("cat: {}: No such file or directory\n", clean_path);
 
-                if let Some((err_file, append)) = &error_path {
-                    // Open the file in append mode and write the error
-                    if let Ok(mut f) = open_file(Path::new(err_file), *append) {
-                        let _ = f.write_all(msg.as_bytes());
-                        let _ = f.flush();
+                // Write to redirected stderr file
+                if let Some((path, append)) = &error_path {
+                    if let Ok(mut file) = open_file(Path::new(path), *append) {
+                        let _ = file.write_all(err_msg.as_bytes());
+                        let _ = file.flush();
                     }
-                } else {
-                    eprint!("{}", msg);
                 }
-                has_error = true;
+
+                // Also write to actual stderr
+                let _ = eprint!("{}", err_msg);
             }
         }
     }
 
-    let final_output = all_content.join("");
+    let joined = total_content.join("");
 
-    // Write to stdout if redirected, else print normally
-    if let Some((out_file, append)) = output_path {
-        if let Ok(mut f) = open_file(Path::new(&out_file), append) {
-            let _ = f.write_all(final_output.as_bytes());
-            let _ = f.flush();
+    // Write to stdout file if redirected
+    if let Some((path, append)) = output_path {
+        if let Ok(mut file) = open_file(Path::new(&path), append) {
+            let _ = file.write_all(joined.as_bytes());
+            let _ = file.flush();
+        } else if !joined.is_empty() {
+            // fallback to normal stdout if file fails
+            print!("{}", joined);
         }
-    } else if !final_output.is_empty() {
-        print!("{}", final_output);
+    } else if !joined.is_empty() {
+        // no redirection → print to console
+        print!("{}", joined);
     }
 }
-fn read_file(path: &str) -> Result<String, io::Error> {
-    let mut f = File::open(path)?;
-    let mut s = String::new();
-    f.read_to_string(&mut s)?;
-    Ok(s)
+
+pub fn open_file(path: &Path, append: bool) -> std::io::Result<File> {
+    let mut options = OpenOptions::new();
+    options.create(true);
+    if append {
+        options.append(true);
+    } else {
+        options.write(true).truncate(true);
+    }
+    options.open(path)
 }
 
 fn unquote_path(path: &str) -> String {
-    let mut p = path.trim().to_string();
-    if (p.starts_with('"') && p.ends_with('"')) || (p.starts_with('\'') && p.ends_with('\'')) {
-        p = p[1..p.len() - 1].to_string();
+    let mut s = path.trim().to_string();
+    if (s.starts_with('\'') && s.ends_with('\'')) || (s.starts_with('"') && s.ends_with('"')) {
+        s = s[1..s.len() - 1].to_string();
     }
-    p
+    s
 }
-pub fn open_file(path: &Path, append: bool) -> std::io::Result<File> {
-    let mut opts = OpenOptions::new();
-    opts.create(true);
-    if append {
-        opts.append(true);
-    } else {
-        opts.write(true).truncate(true);
-    }
-    opts.open(path)
+
+fn read_file(path: &str) -> Result<String, io::Error> {
+    let mut file = File::open(path)?;
+    let mut content = String::new();
+    file.read_to_string(&mut content)?;
+    Ok(content)
 }

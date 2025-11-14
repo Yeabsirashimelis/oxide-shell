@@ -53,27 +53,26 @@ pub fn run_echo_command(input: String) {
         })
         .unwrap_or(text_part);
 
-    // Handle stdout redirection
+    // Write to stdout file if needed
     if let Some((path, append)) = output_path {
         if let Ok(mut f) = open_file(Path::new(path), append) {
             let _ = writeln!(f, "{}", message);
             let _ = f.flush();
         }
-        // Don't print to terminal when stdout is redirected
-        return;
     }
 
-    // Handle stderr redirection - WRITE TO FILE BUT STILL PRINT TO TERMINAL
+    // Write to stderr file if needed (and also emit to stderr)
     if let Some((path, append)) = error_path {
         if let Ok(mut f) = open_file(Path::new(path), append) {
             let _ = writeln!(f, "{}", message);
             let _ = f.flush();
         }
-        // STILL print to terminal even when stderr is redirected to file
-        println!("{}", message);
-        return;
+        // Output to stderr for the shell
+        let _ = writeln!(io::stderr(), "{}", message);
     }
 
     // Print normally if no redirection
-    println!("{}", message);
+    if output_path.is_none() && error_path.is_none() {
+        println!("{}", message);
+    }
 }

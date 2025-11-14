@@ -1,13 +1,16 @@
 use std::{
-    fs::{self, File, OpenOptions},
+    fs::{self},
     io::Write,
     path::Path,
 };
+
+use crate::shell::commands::cat_command::open_file;
+
 pub fn run_ls_command(command: &str) {
     let parts: Vec<&str> = command.trim().split_whitespace().collect();
 
     let mut dir_path = ".";
-    let mut output_path: Option<(&str, bool)> = None;
+    let mut output_path: Option<(&str, bool)> = None; // (path, append)
     let mut error_path: Option<(&str, bool)> = None;
 
     let mut i = 1;
@@ -37,41 +40,40 @@ pub fn run_ls_command(command: &str) {
                     i += 1;
                 }
             }
-            _ => {
-                if dir_path == "." && !parts[i].starts_with('>') {
-                    dir_path = parts[i];
-                }
-            }
+            _ => dir_path = parts[i],
         }
         i += 1;
     }
 
-    // REMOVED: Don't open files here - only open them when we actually have content to write
+    if let Some((path, append)) = output_path {
+        let _ = open_file(Path::new(path), append);
+    }
+    if let Some((path, append)) = error_path {
+        let _ = open_file(Path::new(path), append);
+    }
 
     let path_obj = Path::new(dir_path);
 
     if !path_obj.exists() {
-        let msg = format!("ls: {}: No such file or directory\n", dir_path);
+        let err_msg = format!("ls: {}: No such file or directory\n", dir_path);
         if let Some((path, append)) = error_path {
-            // Only open the error file when we have an error to write
             if let Ok(mut f) = open_file(Path::new(path), append) {
-                let _ = f.write_all(msg.as_bytes());
+                let _ = f.write_all(err_msg.as_bytes());
             }
         } else {
-            eprint!("{}", msg);
+            eprint!("{}", err_msg);
         }
         return;
     }
 
     if !path_obj.is_dir() {
-        let msg = format!("ls: {}: Not a directory\n", dir_path);
+        let err_msg = format!("ls: {}: Not a directory\n", dir_path);
         if let Some((path, append)) = error_path {
-            // Only open the error file when we have an error to write
             if let Ok(mut f) = open_file(Path::new(path), append) {
-                let _ = f.write_all(msg.as_bytes());
+                let _ = f.write_all(err_msg.as_bytes());
             }
         } else {
-            eprint!("{}", msg);
+            eprint!("{}", err_msg);
         }
         return;
     }
@@ -84,14 +86,13 @@ pub fn run_ls_command(command: &str) {
             }
         }
         Err(err) => {
-            let msg = format!("ls: cannot read directory '{}': {}\n", dir_path, err);
+            let err_msg = format!("ls: cannot read directory '{}': {}\n", dir_path, err);
             if let Some((path, append)) = error_path {
-                // Only open the error file when we have an error to write
                 if let Ok(mut f) = open_file(Path::new(path), append) {
-                    let _ = f.write_all(msg.as_bytes());
+                    let _ = f.write_all(err_msg.as_bytes());
                 }
             } else {
-                eprint!("{}", msg);
+                eprint!("{}", err_msg);
             }
             return;
         }
@@ -101,19 +102,8 @@ pub fn run_ls_command(command: &str) {
     let output = entries.join("\n") + "\n";
 
     if let Some((path, append)) = output_path {
-        // Only open the output file when we have successful output to write
         let _ = open_file(Path::new(path), append).and_then(|mut f| f.write_all(output.as_bytes()));
     } else {
         print!("{}", output);
     }
-}
-pub fn open_file(path: &Path, append: bool) -> std::io::Result<File> {
-    let mut opts = OpenOptions::new();
-    opts.create(true);
-    if append {
-        opts.append(true);
-    } else {
-        opts.write(true).truncate(true);
-    }
-    opts.open(path)
 }
