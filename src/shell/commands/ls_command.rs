@@ -3,7 +3,6 @@ use std::{
     io::Write,
     path::Path,
 };
-
 pub fn run_ls_command(command: &str) {
     let parts: Vec<&str> = command.trim().split_whitespace().collect();
 
@@ -47,11 +46,14 @@ pub fn run_ls_command(command: &str) {
         i += 1;
     }
 
+    // REMOVED: Don't open files here - only open them when we actually have content to write
+
     let path_obj = Path::new(dir_path);
 
     if !path_obj.exists() {
         let msg = format!("ls: {}: No such file or directory\n", dir_path);
         if let Some((path, append)) = error_path {
+            // Only open the error file when we have an error to write
             if let Ok(mut f) = open_file(Path::new(path), append) {
                 let _ = f.write_all(msg.as_bytes());
             }
@@ -64,6 +66,7 @@ pub fn run_ls_command(command: &str) {
     if !path_obj.is_dir() {
         let msg = format!("ls: {}: Not a directory\n", dir_path);
         if let Some((path, append)) = error_path {
+            // Only open the error file when we have an error to write
             if let Ok(mut f) = open_file(Path::new(path), append) {
                 let _ = f.write_all(msg.as_bytes());
             }
@@ -83,6 +86,7 @@ pub fn run_ls_command(command: &str) {
         Err(err) => {
             let msg = format!("ls: cannot read directory '{}': {}\n", dir_path, err);
             if let Some((path, append)) = error_path {
+                // Only open the error file when we have an error to write
                 if let Ok(mut f) = open_file(Path::new(path), append) {
                     let _ = f.write_all(msg.as_bytes());
                 }
@@ -97,12 +101,12 @@ pub fn run_ls_command(command: &str) {
     let output = entries.join("\n") + "\n";
 
     if let Some((path, append)) = output_path {
+        // Only open the output file when we have successful output to write
         let _ = open_file(Path::new(path), append).and_then(|mut f| f.write_all(output.as_bytes()));
     } else {
         print!("{}", output);
     }
 }
-
 pub fn open_file(path: &Path, append: bool) -> std::io::Result<File> {
     let mut opts = OpenOptions::new();
     opts.create(true);
