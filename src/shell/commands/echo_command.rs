@@ -8,6 +8,7 @@ pub fn run_echo_command(parts: Vec<String>) {
         return;
     }
 
+    // --- Detect stdout and stderr redirection ---
     let mut stdout_path: Option<(String, bool)> = None;
     let mut stderr_path: Option<(String, bool)> = None;
 
@@ -19,7 +20,7 @@ pub fn run_echo_command(parts: Vec<String>) {
             ">" | "1>" => {
                 if i + 1 < parts.len() {
                     stdout_path = Some((parts[i + 1].clone(), false));
-                    i += 1;
+                    i += 1; // skip filename
                 }
             }
             ">>" | "1>>" => {
@@ -45,15 +46,20 @@ pub fn run_echo_command(parts: Vec<String>) {
         i += 1;
     }
 
-    // Reconstruct message (skip "echo" command itself)
-    let message = filtered_parts[1..]
-        .iter()
-        .map(|s| strip_outer_quotes(s))
-        .collect::<Vec<_>>()
-        .join(" ")
-        + "\n";
+    // --- Reconstruct the message ---
+    // Skip the first element "echo"
+    let message = if filtered_parts.len() > 1 {
+        filtered_parts[1..]
+            .iter()
+            .map(|s| strip_outer_quotes(s))
+            .collect::<Vec<_>>()
+            .join(" ")
+            + "\n"
+    } else {
+        "\n".to_string()
+    };
 
-    // Handle stderr redirection first
+    // --- Handle stderr redirection first ---
     if let Some((path, append)) = stderr_path {
         if let Ok(mut f) = open_file(Path::new(&path), append) {
             let _ = f.write_all(message.as_bytes());
@@ -61,10 +67,10 @@ pub fn run_echo_command(parts: Vec<String>) {
         } else {
             let _ = eprint!("{}", message);
         }
-        return; // do NOT print to stdout
+        return; // do not print to stdout
     }
 
-    // Handle stdout redirection
+    // --- Handle stdout redirection ---
     if let Some((path, append)) = stdout_path {
         if let Ok(mut f) = open_file(Path::new(&path), append) {
             let _ = f.write_all(message.as_bytes());
@@ -75,10 +81,11 @@ pub fn run_echo_command(parts: Vec<String>) {
         return;
     }
 
-    // Normal echo
+    // --- Normal echo ---
     print!("{}", message);
 }
 
+/// Removes outer quotes ONLY if the whole string is quoted
 fn strip_outer_quotes(s: &str) -> String {
     if s.len() >= 2 {
         let first = s.chars().next().unwrap();
@@ -90,6 +97,7 @@ fn strip_outer_quotes(s: &str) -> String {
     s.to_string()
 }
 
+/// Open file for writing/appending
 fn open_file(path: &Path, append: bool) -> std::io::Result<File> {
     let mut opts = OpenOptions::new();
     opts.create(true);
