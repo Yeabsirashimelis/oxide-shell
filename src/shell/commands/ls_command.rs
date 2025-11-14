@@ -97,7 +97,7 @@ pub fn run_ls_command(command: &str) {
             return;
         }
     }
-
+    //
     entries.sort();
     let output = entries.join("\n") + "\n";
 
