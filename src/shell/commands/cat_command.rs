@@ -43,19 +43,20 @@ pub fn run_cat_command(args: Vec<String>) {
 
         match read_file(&clean_path) {
             Ok(content) => total_content.push(content),
+
             Err(_) => {
                 let err_msg = format!("cat: {}: No such file or directory\n", clean_path);
 
-                // Write to redirected stderr file
+                // If stderr redirected → write ONLY to the file.
                 if let Some((path, append)) = &error_path {
                     if let Ok(mut file) = open_file(Path::new(path), *append) {
                         let _ = file.write_all(err_msg.as_bytes());
                         let _ = file.flush();
                     }
+                } else {
+                    // Otherwise print normally
+                    eprint!("{}", err_msg);
                 }
-
-                // Also write to actual stderr
-                let _ = eprint!("{}", err_msg);
             }
         }
     }
