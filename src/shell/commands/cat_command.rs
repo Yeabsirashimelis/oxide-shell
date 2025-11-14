@@ -8,30 +8,28 @@ pub fn run_cat_command(args: Vec<String>) {
     let mut output_path: Option<(String, bool)> = None;
     let mut error_path: Option<(String, bool)> = None;
 
-    // Parse stdout redirection first
-    if let Some(pos) = files.iter().position(|a| a == ">>" || a == "1>>") {
-        if pos + 1 < files.len() {
-            output_path = Some((files[pos + 1].clone(), true));
-            files.drain(pos..=pos + 1);
-        }
-    }
-    if let Some(pos) = files.iter().position(|a| a == ">" || a == "1>") {
-        if pos + 1 < files.len() {
-            output_path = Some((files[pos + 1].clone(), false));
-            files.drain(pos..=pos + 1);
-        }
-    }
-
-    // Parse stderr redirection
+    // ---- Parse stderr redirection FIRST ----
     if let Some(pos) = files.iter().position(|a| a == "2>>") {
         if pos + 1 < files.len() {
             error_path = Some((files[pos + 1].clone(), true));
             files.drain(pos..=pos + 1);
         }
-    }
-    if let Some(pos) = files.iter().position(|a| a == "2>") {
+    } else if let Some(pos) = files.iter().position(|a| a == "2>") {
         if pos + 1 < files.len() {
             error_path = Some((files[pos + 1].clone(), false));
+            files.drain(pos..=pos + 1);
+        }
+    }
+
+    // ---- Parse stdout redirection AFTER stderr ----
+    if let Some(pos) = files.iter().position(|a| a == "1>>" || a == ">>") {
+        if pos + 1 < files.len() {
+            output_path = Some((files[pos + 1].clone(), true));
+            files.drain(pos..=pos + 1);
+        }
+    } else if let Some(pos) = files.iter().position(|a| a == "1>" || a == ">") {
+        if pos + 1 < files.len() {
+            output_path = Some((files[pos + 1].clone(), false));
             files.drain(pos..=pos + 1);
         }
     }
