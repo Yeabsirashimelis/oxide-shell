@@ -77,17 +77,7 @@ pub fn parse_command(input: &str) -> Option<Command> {
             let code = args.parse::<i32>().unwrap_or(0);
             Some(Command::Exit(code))
         }
-        "echo" => {
-            if args.contains('>') || args.contains("1>") {
-                Some(Command::Echo(args))
-            } else if external_commands.contains_key(&cmd_to_check) {
-                let args_vec: Vec<String> = parts.iter().map(|s| s.to_string()).collect();
-                Some(Command::External(args_vec))
-            } else {
-                // Fallback to Rust echo
-                Some(Command::Echo(args))
-            }
-        }
+        "echo" => Some(Command::Echo(args)),
         "type" => Some(Command::Type(args)),
         "pwd" => Some(Command::PWD),
         "cd" => Some(Command::CD(args)),

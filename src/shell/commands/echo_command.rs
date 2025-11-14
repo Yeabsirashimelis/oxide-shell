@@ -59,20 +59,20 @@ pub fn run_echo_command(input: String) {
             let _ = writeln!(f, "{}", message);
             let _ = f.flush();
         }
+        // Don't print to terminal when stdout is redirected
+        return;
     }
 
-    // Write to stderr file if needed (and also emit to stderr)
+    // Write to stderr file if needed
     if let Some((path, append)) = error_path {
         if let Ok(mut f) = open_file(Path::new(path), append) {
             let _ = writeln!(f, "{}", message);
             let _ = f.flush();
         }
-        // Output to stderr for the shell
-        let _ = writeln!(io::stderr(), "{}", message);
+        // Don't print to terminal when stderr is redirected
+        return;
     }
 
     // Print normally if no redirection
-    if output_path.is_none() && error_path.is_none() {
-        println!("{}", message);
-    }
+    println!("{}", message);
 }
