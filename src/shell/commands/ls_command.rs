@@ -15,39 +15,31 @@ pub fn run_ls_command(command: &str) {
         match parts[i] {
             ">" | "1>" => {
                 if i + 1 < parts.len() {
-                    output_path = Some((parts[i + 1], false));
+                    output_path = Some((parts[i + 1], false)); // overwrite
                     i += 1;
                 }
             }
             ">>" | "1>>" => {
                 if i + 1 < parts.len() {
-                    output_path = Some((parts[i + 1], true));
+                    output_path = Some((parts[i + 1], true)); // append
                     i += 1;
                 }
             }
             "2>" => {
                 if i + 1 < parts.len() {
-                    error_path = Some((parts[i + 1], false));
+                    error_path = Some((parts[i + 1], false)); // overwrite
                     i += 1;
                 }
             }
             "2>>" => {
                 if i + 1 < parts.len() {
-                    error_path = Some((parts[i + 1], true));
+                    error_path = Some((parts[i + 1], true)); // append
                     i += 1;
                 }
             }
             _ => dir_path = parts[i],
         }
         i += 1;
-    }
-
-    // Open files if redirected (creates empty files if missing)
-    if let Some((path, append)) = output_path {
-        let _ = open_file(Path::new(path), append);
-    }
-    if let Some((path, append)) = error_path {
-        let _ = open_file(Path::new(path), append);
     }
 
     let path_obj = Path::new(dir_path);

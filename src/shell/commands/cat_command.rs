@@ -13,12 +13,12 @@ pub fn run_cat_command(args: Vec<String>) {
     // ---- Parse stderr redirection first ----
     if let Some(pos) = files.iter().position(|a| a == "2>>") {
         if pos + 1 < files.len() {
-            error_path = Some((files[pos + 1].clone(), true));
+            error_path = Some((files[pos + 1].clone(), true)); // true for append
             files.drain(pos..=pos + 1);
         }
     } else if let Some(pos) = files.iter().position(|a| a == "2>") {
         if pos + 1 < files.len() {
-            error_path = Some((files[pos + 1].clone(), false));
+            error_path = Some((files[pos + 1].clone(), false)); // false for overwrite
             files.drain(pos..=pos + 1);
         }
     }
@@ -26,12 +26,12 @@ pub fn run_cat_command(args: Vec<String>) {
     // ---- Parse stdout redirection second ----
     if let Some(pos) = files.iter().position(|a| a == "1>>" || a == ">>") {
         if pos + 1 < files.len() {
-            output_path = Some((files[pos + 1].clone(), true));
+            output_path = Some((files[pos + 1].clone(), true)); // true for append
             files.drain(pos..=pos + 1);
         }
     } else if let Some(pos) = files.iter().position(|a| a == "1>" || a == ">") {
         if pos + 1 < files.len() {
-            output_path = Some((files[pos + 1].clone(), false));
+            output_path = Some((files[pos + 1].clone(), false)); // false for overwrite
             files.drain(pos..=pos + 1);
         }
     }
