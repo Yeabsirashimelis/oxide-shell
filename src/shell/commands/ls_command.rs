@@ -37,7 +37,12 @@ pub fn run_ls_command(command: &str) {
                     i += 1;
                 }
             }
-            _ => dir_path = parts[i],
+            _ => {
+                // Only set dir_path if it's not a redirection operator and we haven't set it yet
+                if dir_path == "." && !parts[i].starts_with('>') {
+                    dir_path = parts[i];
+                }
+            }
         }
         i += 1;
     }
