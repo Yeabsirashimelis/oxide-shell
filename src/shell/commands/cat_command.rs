@@ -8,52 +8,45 @@ pub fn run_cat_command(args: Vec<String>) {
     let mut output_path: Option<(String, bool)> = None;
     let mut error_path: Option<(String, bool)> = None;
 
-    // Parse stderr redirection
+    // Parse redirections more carefully
     let mut i = 0;
     while i < files.len() {
-        if files[i] == "2>>" {
-            if i + 1 < files.len() {
-                error_path = Some((files[i + 1].clone(), true));
-                files.drain(i..=i + 1);
-                continue;
+        match files[i].as_str() {
+            "2>>" => {
+                if i + 1 < files.len() {
+                    error_path = Some((files[i + 1].clone(), true));
+                    files.drain(i..=i + 1);
+                    continue;
+                }
             }
-        } else if files[i] == "2>" {
-            if i + 1 < files.len() {
-                error_path = Some((files[i + 1].clone(), false));
-                files.drain(i..=i + 1);
-                continue;
+            "2>" => {
+                if i + 1 < files.len() {
+                    error_path = Some((files[i + 1].clone(), false));
+                    files.drain(i..=i + 1);
+                    continue;
+                }
             }
-        }
-        i += 1;
-    }
-
-    // Parse stdout redirection
-    let mut i = 0;
-    while i < files.len() {
-        if files[i] == "1>>" || files[i] == ">>" {
-            if i + 1 < files.len() {
-                output_path = Some((files[i + 1].clone(), true));
-                files.drain(i..=i + 1);
-                continue;
+            ">>" | "1>>" => {
+                if i + 1 < files.len() {
+                    output_path = Some((files[i + 1].clone(), true));
+                    files.drain(i..=i + 1);
+                    continue;
+                }
             }
-        } else if files[i] == "1>" || files[i] == ">" {
-            if i + 1 < files.len() {
-                output_path = Some((files[i + 1].clone(), false));
-                files.drain(i..=i + 1);
-                continue;
+            ">" | "1>" => {
+                if i + 1 < files.len() {
+                    output_path = Some((files[i + 1].clone(), false));
+                    files.drain(i..=i + 1);
+                    continue;
+                }
             }
+            _ => {}
         }
         i += 1;
     }
 
     let mut all_content: Vec<String> = Vec::new();
     let mut has_error = false;
-
-    // If no files provided, read from stdin (simplified - just return)
-    if files.is_empty() {
-        // For now, just return if no files provided
-        return;
-    }
 
     for file_arg in &files {
         let clean_path = unquote_path(file_arg);
@@ -64,6 +57,7 @@ pub fn run_cat_command(args: Vec<String>) {
                 let msg = format!("cat: {}: No such file or directory\n", clean_path);
 
                 if let Some((err_file, append)) = &error_path {
+                    // Open the file in append mode and write the error
                     if let Ok(mut f) = open_file(Path::new(err_file), *append) {
                         let _ = f.write_all(msg.as_bytes());
                         let _ = f.flush();
@@ -88,7 +82,6 @@ pub fn run_cat_command(args: Vec<String>) {
         print!("{}", final_output);
     }
 }
-
 fn read_file(path: &str) -> Result<String, io::Error> {
     let mut f = File::open(path)?;
     let mut s = String::new();

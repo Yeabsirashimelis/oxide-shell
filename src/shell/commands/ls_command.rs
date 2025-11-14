@@ -1,7 +1,8 @@
-use crate::shell::commands::cat_command::open_file;
-use std::fs::{self};
-use std::io::Write;
-use std::path::Path;
+use std::{
+    fs::{self, File, OpenOptions},
+    io::Write,
+    path::Path,
+};
 
 pub fn run_ls_command(command: &str) {
     let parts: Vec<&str> = command.trim().split_whitespace().collect();
@@ -38,21 +39,12 @@ pub fn run_ls_command(command: &str) {
                 }
             }
             _ => {
-                // Only set dir_path if it's not a redirection operator and we haven't set it yet
                 if dir_path == "." && !parts[i].starts_with('>') {
                     dir_path = parts[i];
                 }
             }
         }
         i += 1;
-    }
-
-    // Open files if redirected (creates empty files if missing)
-    if let Some((path, append)) = output_path {
-        let _ = open_file(Path::new(path), append);
-    }
-    if let Some((path, append)) = error_path {
-        let _ = open_file(Path::new(path), append);
     }
 
     let path_obj = Path::new(dir_path);
@@ -109,4 +101,15 @@ pub fn run_ls_command(command: &str) {
     } else {
         print!("{}", output);
     }
+}
+
+pub fn open_file(path: &Path, append: bool) -> std::io::Result<File> {
+    let mut opts = OpenOptions::new();
+    opts.create(true);
+    if append {
+        opts.append(true);
+    } else {
+        opts.write(true).truncate(true);
+    }
+    opts.open(path)
 }
