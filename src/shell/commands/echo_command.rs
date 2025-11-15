@@ -1,5 +1,5 @@
 use std::fs::OpenOptions;
-use std::io::Write;
+use std::io::{self, Write};
 use std::path::Path;
 
 use crate::shell::commands::cat_command::open_file;
@@ -61,15 +61,17 @@ pub fn run_echo_command(input: String) {
         }
     }
 
-    // --- Write to stderr file if redirected (do NOT print to console) ---
+    // --- Write to stderr file if redirected (and print to stderr) ---
     if let Some((path, append)) = error_path {
         if let Ok(mut f) = open_file(Path::new(path), append) {
             let _ = writeln!(f, "{}", message);
             let _ = f.flush();
         }
+        // Always print to stderr when using 2> or 2>>
+        let _ = writeln!(io::stderr(), "{}", message);
     }
 
-    // --- Print to console only if no redirection at all ---
+    // --- Print to stdout only if no redirection at all ---
     if output_path.is_none() && error_path.is_none() {
         println!("{}", message);
     }
