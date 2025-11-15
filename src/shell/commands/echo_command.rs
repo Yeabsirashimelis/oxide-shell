@@ -3,7 +3,6 @@ use std::io::{self, Write};
 use std::path::Path;
 
 use crate::shell::commands::cat_command::open_file;
-
 pub fn run_echo_command(input: String) {
     let input = input.trim();
 
@@ -41,7 +40,7 @@ pub fn run_echo_command(input: String) {
         output_path = Some((parts[1].trim(), false));
     }
 
-    // Extract the message
+    // Extract message
     let text_part = text_part.trim_start_matches("echo").trim();
     let message = text_part
         .strip_prefix('"')
@@ -53,7 +52,7 @@ pub fn run_echo_command(input: String) {
         })
         .unwrap_or(text_part);
 
-    // Write to stdout file if needed
+    // Write stdout redirection
     if let Some((path, append)) = output_path {
         if let Ok(mut f) = open_file(Path::new(path), append) {
             let _ = writeln!(f, "{}", message);
@@ -61,17 +60,15 @@ pub fn run_echo_command(input: String) {
         }
     }
 
-    // Write to stderr file if needed (and also emit to stderr)
+    // Write stderr redirection (NO stderr printing)
     if let Some((path, append)) = error_path {
         if let Ok(mut f) = open_file(Path::new(path), append) {
             let _ = writeln!(f, "{}", message);
             let _ = f.flush();
         }
-        // Output to stderr for the shell
-        let _ = writeln!(io::stderr(), "{}", message);
     }
 
-    // Print normally if no redirection
+    // Normal echo output
     if output_path.is_none() && error_path.is_none() {
         println!("{}", message);
     }
