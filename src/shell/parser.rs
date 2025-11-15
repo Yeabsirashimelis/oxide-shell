@@ -73,18 +73,20 @@ pub fn parse_command(input: &str) -> Option<Command> {
     }
 
     match cmd.as_str() {
-        "exit" => Some(Command::Exit(args.parse().unwrap_or(0))),
+        "exit" => {
+            let code = args.parse::<i32>().unwrap_or(0);
+            Some(Command::Exit(code))
+        }
         "echo" => Some(Command::Echo(args)),
         "type" => Some(Command::Type(args)),
         "pwd" => Some(Command::PWD),
         "cd" => Some(Command::CD(args)),
         "cat" => {
-            let vec_args = parts.into_iter().collect();
-            Some(Command::Cat(vec_args))
+            let args_vec: Vec<String> = parts.iter().map(|s| s.to_string()).collect();
+            Some(Command::Cat(args_vec))
         }
         "ls" => Some(Command::Ls(args)),
         _ => {
-            // Only now check external commands
             if external_commands.contains_key(&cmd_to_check) {
                 let args_vec: Vec<String> = parts.iter().map(|s| s.to_string()).collect();
                 Some(Command::External(args_vec))

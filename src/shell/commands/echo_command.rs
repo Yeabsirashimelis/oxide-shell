@@ -11,7 +11,7 @@ pub fn run_echo_command(input: String) {
     let mut output_path: Option<(&str, bool)> = None;
     let mut error_path: Option<(&str, bool)> = None;
 
-    // ---------- Parse stderr redirection ----------
+    // Parse stderr redirection first
     if input.contains("2>>") {
         let parts: Vec<&str> = input.splitn(2, "2>>").collect();
         text_part = parts[0].trim();
@@ -22,7 +22,7 @@ pub fn run_echo_command(input: String) {
         error_path = Some((parts[1].trim(), false));
     }
 
-    // ---------- Parse stdout redirection ----------
+    // Parse stdout redirection
     if text_part.contains("1>>") {
         let parts: Vec<&str> = text_part.splitn(2, "1>>").collect();
         text_part = parts[0].trim();
@@ -41,21 +41,19 @@ pub fn run_echo_command(input: String) {
         output_path = Some((parts[1].trim(), false));
     }
 
-    // ---------- Extract echo message (FIXED) ----------
-    let mut args = text_part.trim_start_matches("echo").trim().to_string();
+    // Extract the message
+    let text_part = text_part.trim_start_matches("echo").trim();
+    let message = text_part
+        .strip_prefix('"')
+        .and_then(|s| s.strip_suffix('"'))
+        .or_else(|| {
+            text_part
+                .strip_prefix('\'')
+                .and_then(|s| s.strip_suffix('\''))
+        })
+        .unwrap_or(text_part);
 
-    // Remove surrounding quotes ONLY if both match
-    if (args.starts_with('"') && args.ends_with('"'))
-        || (args.starts_with('\'') && args.ends_with('\''))
-    {
-        if args.len() >= 2 {
-            args = args[1..args.len() - 1].to_string();
-        }
-    }
-
-    let message = args;
-
-    // ---------- Write to stdout-redirection file ----------
+    // Write to stdout file if needed
     if let Some((path, append)) = output_path {
         if let Ok(mut f) = open_file(Path::new(path), append) {
             let _ = writeln!(f, "{}", message);
@@ -63,18 +61,17 @@ pub fn run_echo_command(input: String) {
         }
     }
 
-    // ---------- Write to stderr-redirection file ----------
+    // Write to stderr file if needed (and also emit to stderr)
     if let Some((path, append)) = error_path {
         if let Ok(mut f) = open_file(Path::new(path), append) {
             let _ = writeln!(f, "{}", message);
             let _ = f.flush();
         }
-
-        // Also print to stderr normally
+        // Output to stderr for the shell
         let _ = writeln!(io::stderr(), "{}", message);
     }
 
-    // ---------- Print normally if no redirection ----------
+    // Print normally if no redirection
     if output_path.is_none() && error_path.is_none() {
         println!("{}", message);
     }
