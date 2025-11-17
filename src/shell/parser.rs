@@ -10,6 +10,7 @@ pub fn parse_command(input: &str) -> Option<Command> {
 
     let mut parts: Vec<String> = Vec::new();
     let mut current = String::new();
+
     let mut in_single_quotes = false;
     let mut in_double_quotes = false;
 
@@ -18,30 +19,43 @@ pub fn parse_command(input: &str) -> Option<Command> {
     while let Some(c) = chars.next() {
         match c {
             '\\' => {
+                // Always escape next char OUTSIDE single quotes
                 if let Some(next_char) = chars.next() {
                     if in_single_quotes {
-                        current.push('\\'); // literal in single quotes
-                    }
-                    if in_double_quotes && !"\\\"$`".contains(next_char) {
+                        // Backslash is literal inside single quotes
                         current.push('\\');
+                        current.push(next_char);
+                    } else if in_double_quotes {
+                        // Bash rules: only escape ", \, $, `
+                        if "\\\"$`".contains(next_char) {
+                            current.push(next_char);
+                        } else {
+                            current.push(next_char);
+                        }
+                    } else {
+                        // OUTSIDE any quotes: escape ANY next char literally
+                        current.push(next_char);
                     }
-                    current.push(next_char);
                 }
             }
+
             '\'' if !in_double_quotes => {
                 in_single_quotes = !in_single_quotes;
                 continue;
             }
+
             '"' if !in_single_quotes => {
                 in_double_quotes = !in_double_quotes;
                 continue;
             }
+
             ' ' if !in_single_quotes && !in_double_quotes => {
                 if !current.is_empty() {
                     parts.push(current.clone());
                     current.clear();
                 }
             }
+
             _ => current.push(c),
         }
     }
