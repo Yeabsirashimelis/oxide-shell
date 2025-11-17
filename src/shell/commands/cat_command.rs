@@ -31,8 +31,6 @@ fn read_file(path: &str) -> Result<String, io::Error> {
     Ok(content)
 }
 
-// --- Main Command Logic ---
-
 pub fn run_cat_command(args: Vec<String>) {
     let mut files: Vec<String> = args.into_iter().skip(1).collect();
 
@@ -103,7 +101,7 @@ pub fn run_cat_command(args: Vec<String>) {
             print!("{}", joined);
         }
     } else if !joined.is_empty() {
-        // no redirection → print to console
+        // no redirection → print to consolee
         print!("{}", joined);
     }
 }
