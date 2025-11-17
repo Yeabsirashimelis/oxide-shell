@@ -10,7 +10,6 @@ pub fn parse_command(input: &str) -> Option<Command> {
 
     let mut parts: Vec<String> = Vec::new();
     let mut current = String::new();
-
     let mut in_single_quotes = false;
     let mut in_double_quotes = false;
 
@@ -19,43 +18,30 @@ pub fn parse_command(input: &str) -> Option<Command> {
     while let Some(c) = chars.next() {
         match c {
             '\\' => {
-                // Always escape next char OUTSIDE single quotes
                 if let Some(next_char) = chars.next() {
                     if in_single_quotes {
-                        // Backslash is literal inside single quotes
-                        current.push('\\');
-                        current.push(next_char);
-                    } else if in_double_quotes {
-                        // Bash rules: only escape ", \, $, `
-                        if "\\\"$`".contains(next_char) {
-                            current.push(next_char);
-                        } else {
-                            current.push(next_char);
-                        }
-                    } else {
-                        // OUTSIDE any quotes: escape ANY next char literally
-                        current.push(next_char);
+                        current.push('\\'); // literal in single quotes
                     }
+                    if in_double_quotes && !"\\\"$`".contains(next_char) {
+                        current.push('\\');
+                    }
+                    current.push(next_char);
                 }
             }
-
             '\'' if !in_double_quotes => {
                 in_single_quotes = !in_single_quotes;
                 continue;
             }
-
             '"' if !in_single_quotes => {
                 in_double_quotes = !in_double_quotes;
                 continue;
             }
-
             ' ' if !in_single_quotes && !in_double_quotes => {
                 if !current.is_empty() {
                     parts.push(current.clone());
                     current.clear();
                 }
             }
-
             _ => current.push(c),
         }
     }
@@ -91,7 +77,30 @@ pub fn parse_command(input: &str) -> Option<Command> {
             let code = args.parse::<i32>().unwrap_or(0);
             Some(Command::Exit(code))
         }
-        "echo" => Some(Command::Echo(args)),
+        "echo" => {
+            // Check if the input contains redirection symbols
+            if cmd == "echo"
+                && args_vec.iter().any(|s| {
+                    s == ">" || s == ">>" || s == "1>" || s == "1>>" || s == "2>" || s == "2>>"
+                })
+            {
+                // Use custom echo for redirection
+                Some(Command::Echo(args))
+            } else if cmd == "echo" {
+                // Plain echo, check if external exists
+                if external_commands.contains_key(cmd) {
+                    // Treat as external command
+                    let full_args: Vec<String> = parts.iter().map(|s| s.to_string()).collect();
+                    Some(Command::External(full_args))
+                } else {
+                    // Builtin echo
+                    Some(Command::Echo(args))
+                }
+            } else {
+                // Builtin echo
+                Some(Command::Echo(args))
+            }
+        }
         "type" => Some(Command::Type(args)),
         "pwd" => Some(Command::PWD),
         "cd" => Some(Command::CD(args)),
