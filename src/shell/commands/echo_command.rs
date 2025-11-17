@@ -1,78 +1,69 @@
-use std::fs::OpenOptions;
-use std::io::{self, Write};
-use std::path::Path;
+use std::fs::{File, OpenOptions};
+use std::io::Write;
 
-use crate::shell::commands::cat_command::open_file;
+pub fn run_echo_command(raw: String) {
+    let tokens: Vec<&str> = raw.split_whitespace().collect();
 
-pub fn run_echo_command(input: String) {
-    let input = input.trim();
+    let mut stdout_path: Option<(&str, bool)> = None; // (path, append)
+    let mut stderr_path: Option<(&str, bool)> = None;
+    let mut echo_parts: Vec<&str> = Vec::new();
 
-    let mut text_part = input;
-    let mut output_path: Option<(&str, bool)> = None;
-    let mut error_path: Option<(&str, bool)> = None;
-
-    // --- Parse stderr redirection first ---
-    if input.contains("2>>") {
-        let parts: Vec<&str> = input.splitn(2, "2>>").collect();
-        text_part = parts[0].trim();
-        error_path = Some((parts[1].trim(), true));
-    } else if input.contains("2>") {
-        let parts: Vec<&str> = input.splitn(2, "2>").collect();
-        text_part = parts[0].trim();
-        error_path = Some((parts[1].trim(), false));
-    }
-
-    // --- Parse stdout redirection ---
-    if text_part.contains("1>>") {
-        let parts: Vec<&str> = text_part.splitn(2, "1>>").collect();
-        text_part = parts[0].trim();
-        output_path = Some((parts[1].trim(), true));
-    } else if text_part.contains(">>") {
-        let parts: Vec<&str> = text_part.splitn(2, ">>").collect();
-        text_part = parts[0].trim();
-        output_path = Some((parts[1].trim(), true));
-    } else if text_part.contains("1>") {
-        let parts: Vec<&str> = text_part.splitn(2, "1>").collect();
-        text_part = parts[0].trim();
-        output_path = Some((parts[1].trim(), false));
-    } else if text_part.contains('>') {
-        let parts: Vec<&str> = text_part.splitn(2, '>').collect();
-        text_part = parts[0].trim();
-        output_path = Some((parts[1].trim(), false));
-    }
-
-    // --- Extract the message ---
-    let text_part = text_part.strip_prefix("echo").unwrap_or(text_part).trim();
-    let message = text_part
-        .strip_prefix('"')
-        .and_then(|s| s.strip_suffix('"'))
-        .or_else(|| {
-            text_part
-                .strip_prefix('\'')
-                .and_then(|s| s.strip_suffix('\''))
-        })
-        .unwrap_or(text_part);
-
-    // --- Write to stdout file if redirected ---
-    if let Some((path, append)) = output_path {
-        if let Ok(mut f) = open_file(Path::new(path), append) {
-            let _ = writeln!(f, "{}", message);
-            let _ = f.flush();
+    let mut i = 0;
+    while i < tokens.len() {
+        match tokens[i] {
+            ">" | "1>" => {
+                stdout_path = Some((tokens[i + 1], false));
+                i += 2;
+            }
+            ">>" | "1>>" => {
+                stdout_path = Some((tokens[i + 1], true));
+                i += 2;
+            }
+            "2>" => {
+                stderr_path = Some((tokens[i + 1], false));
+                i += 2;
+            }
+            "2>>" => {
+                stderr_path = Some((tokens[i + 1], true));
+                i += 2;
+            }
+            _ => {
+                echo_parts.push(tokens[i]);
+                i += 1;
+            }
         }
     }
 
-    // --- Write to stderr file if redirected (and print to stderr) ---
-    if let Some((path, append)) = error_path {
-        if let Ok(mut f) = open_file(Path::new(path), append) {
-            let _ = writeln!(f, "{}", message);
-            let _ = f.flush();
-        }
-        // Always print to stderr when using 2> or 2>>
-        let _ = writeln!(io::stderr(), "{}", message);
-    }
+    // The actual echo message
+    let message = echo_parts.join(" ");
 
-    // --- Print to stdout only if no redirection at all ---
-    if output_path.is_none() && error_path.is_none() {
+    //
+    // 1. Handle STDOUT
+    //
+    if let Some((path, append)) = stdout_path {
+        let mut file = if append {
+            OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+                .unwrap()
+        } else {
+            File::create(path).unwrap()
+        };
+        writeln!(file, "{}", message).unwrap();
+    } else {
         println!("{}", message);
+    }
+
+    //
+    // 2. Handle STDERR redirection (touch file, NO writing)
+    //
+    if let Some((path, append)) = stderr_path {
+        let _ = if append {
+            OpenOptions::new().create(true).append(true).open(path)
+        } else {
+            File::create(path)
+        };
+        // Nothing is written — Codecrafters requires this
     }
 }
