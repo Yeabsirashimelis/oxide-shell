@@ -19,7 +19,6 @@ impl Shell {
 
     pub fn run(&mut self) {
         let mut input = String::new();
-
         let available_commands = ["help", "echo", "exit", "ls"];
 
         enable_raw_mode().unwrap();
@@ -27,6 +26,7 @@ impl Shell {
         loop {
             print!("$ ");
             io::stdout().flush().unwrap();
+            input.clear();
 
             loop {
                 if poll(Duration::from_millis(100)).unwrap() {
@@ -35,7 +35,6 @@ impl Shell {
                             KeyCode::Enter => {
                                 if key_event.kind == KeyEventKind::Press {
                                     println!();
-                                    input = input.trim_end().to_string();
                                     break;
                                 }
                             }
@@ -53,11 +52,10 @@ impl Shell {
                                 }
                             }
                             KeyCode::Backspace => {
-                                if key_event.kind == KeyEventKind::Press {
-                                    if input.pop().is_some() {
-                                        print!("\x08 \x08");
-                                        io::stdout().flush().unwrap();
-                                    }
+                                if key_event.kind == KeyEventKind::Press && !input.is_empty() {
+                                    input.pop();
+                                    print!("\x08 \x08");
+                                    io::stdout().flush().unwrap();
                                 }
                             }
                             KeyCode::Tab => {
@@ -66,7 +64,7 @@ impl Shell {
                                         .iter()
                                         .find(|cmd| cmd.starts_with(&input))
                                     {
-                                        // Clear the current line and show prompt with autocompleted command + space
+                                        // Clear line and show autocompleted command with space
                                         print!("\r\x1B[2K$ {} ", matched);
                                         io::stdout().flush().unwrap();
                                         input = matched.to_string();
@@ -81,11 +79,13 @@ impl Shell {
 
             let trimmed = input.trim();
             if trimmed.is_empty() {
-                input.clear();
                 continue;
             }
 
-            match parse_command(&trimmed) {
+            // Debug: Print what we're about to execute
+            // println!("[DEBUG] Executing: '{}'", trimmed);
+
+            match parse_command(trimmed) {
                 Some(Command::Exit(code)) => {
                     disable_raw_mode().unwrap();
                     process::exit(code);
@@ -93,7 +93,6 @@ impl Shell {
                 Some(cmd) => handle_command(cmd),
                 None => println!("{}: command not found", trimmed),
             }
-            input.clear();
         }
     }
 }
