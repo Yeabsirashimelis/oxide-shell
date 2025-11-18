@@ -53,9 +53,6 @@ impl Shell {
                             }
                             KeyCode::Backspace => {
                                 if key_event.kind == KeyEventKind::Press {
-                                    if input.len() == 1 {
-                                        return {};
-                                    }
                                     if input.pop().is_some() {
                                         print!("\x08 \x08");
                                         io::stdout().flush().unwrap();
@@ -68,8 +65,9 @@ impl Shell {
                                         .iter()
                                         .find(|cmd| cmd.starts_with(&input))
                                     {
+                                        print!("\r\x1B[2K");
                                         input = matched.to_string();
-                                        print!("{}", input);
+                                        print!("$ {}", input);
                                         io::stdout().flush().unwrap();
                                     }
                                 }
