@@ -33,7 +33,7 @@ pub fn run_echo_command(raw: String) {
             }
         }
     }
-
+    //
     let message = echo_parts.join(" ");
 
     if let Some((path, append)) = stdout_path {
