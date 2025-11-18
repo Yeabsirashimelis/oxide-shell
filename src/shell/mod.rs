@@ -85,7 +85,10 @@ impl Shell {
             }
 
             match parse_command(&trimmed) {
-                Some(Command::Exit(code)) => process::exit(code),
+                Some(Command::Exit(code)) => {
+                    disable_raw_mode().unwrap();
+                    process::exit(code);
+                }
                 Some(cmd) => handle_command(cmd),
                 None => println!("{}: command not found", input.trim()),
             }
