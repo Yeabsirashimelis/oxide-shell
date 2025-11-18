@@ -34,17 +34,13 @@ impl Shell {
                         match key_event.code {
                             KeyCode::Enter => {
                                 if key_event.kind == KeyEventKind::Press {
-                                    let mut should_visually_pop = false;
                                     if let Some(c) = input.chars().last() {
                                         if !c.is_whitespace() {
-                                            should_visually_pop = true;
-                                        }
-                                    }
+                                            print!("\x1B[1D\x1B[K");
+                                            io::stdout().flush().unwrap();
 
-                                    if should_visually_pop {
-                                        print!("\x08 \x08");
-                                        io::stdout().flush().unwrap();
-                                        input.pop();
+                                            input.pop();
+                                        }
                                     }
 
                                     input = input.trim_end().to_string();
