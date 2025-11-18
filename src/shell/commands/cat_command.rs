@@ -2,9 +2,6 @@ use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::Path;
 
-// --- Utility Functions ---
-// These should be accessible by all command modules (like ls)
-
 pub fn open_file(path: &Path, append: bool) -> std::io::Result<File> {
     let mut options = OpenOptions::new();
     options.create(true);
@@ -76,13 +73,11 @@ pub fn run_cat_command(args: Vec<String>) {
                 let err_msg = format!("cat: {}: No such file or directory\n", clean_path);
 
                 if let Some((path, append)) = &error_path {
-                    // Write to redirected stderr file ONLY
                     if let Ok(mut file) = open_file(Path::new(path), *append) {
                         let _ = file.write_all(err_msg.as_bytes());
                         let _ = file.flush();
                     }
                 } else {
-                    // Write to actual stderr (console)
                     let _ = eprint!("{}", err_msg);
                 }
             }
@@ -91,17 +86,14 @@ pub fn run_cat_command(args: Vec<String>) {
 
     let joined = total_content.join("");
 
-    // Write to stdout file if redirected
     if let Some((path, append)) = output_path {
         if let Ok(mut file) = open_file(Path::new(&path), append) {
             let _ = file.write_all(joined.as_bytes());
             let _ = file.flush();
         } else if !joined.is_empty() {
-            // fallback to normal stdout if file fails
             print!("{}", joined);
         }
     } else if !joined.is_empty() {
-        // no redirection → print to consolee
         print!("{}", joined);
     }
 }

@@ -1,10 +1,13 @@
 use std::io::{self, Write};
 use std::process;
+use std::time::Duration;
 
 mod commands;
 mod parser;
 
 use commands::{handle_command, Command};
+use crossterm::event::{poll, read, Event, KeyCode, KeyModifiers};
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use parser::parse_command;
 
 pub struct Shell;
@@ -17,14 +20,58 @@ impl Shell {
     pub fn run(&mut self) {
         let mut input = String::new();
 
+        let available_commands = ["help", "echo", "exit", "ls"];
+
+        enable_raw_mode().unwrap();
+
         loop {
             print!("$ ");
             io::stdout().flush().unwrap();
 
-            input.clear();
-            io::stdin().read_line(&mut input).unwrap();
+            loop {
+                if poll(Duration::from_millis(100)).unwrap() {
+                    if let Event::Key(key_event) = read().unwrap() {
+                        match key_event.code {
+                            KeyCode::Enter => {
+                                println!();
+                                break;
+                            }
+                            KeyCode::Char('c')
+                                if key_event.modifiers.contains(KeyModifiers::CONTROL) =>
+                            {
+                                disable_raw_mode().unwrap();
+                                process::exit(0);
+                            }
+                            KeyCode::Char(c) => {
+                                input.push(c);
+                                print!("{}", c);
+                                io::stdout().flush().unwrap();
+                            }
+                            KeyCode::Backspace => {
+                                if input.pop().is_some() {
+                                    print!("\x08 \x08");
+                                    io::stdout().flush().unwrap();
+                                }
+                            }
+                            KeyCode::Tab => {
+                                if let Some(matched) = available_commands
+                                    .iter()
+                                    .find(|cmd| cmd.starts_with(&input))
+                                {
+                                    input = matched.to_string();
+                                    print!("{}", input);
+                                    io::stdout().flush().unwrap();
+                                }
+                            }
 
-            if input.trim().is_empty() {
+                            _ => {}
+                        }
+                    }
+                }
+            }
+
+            let trimmed = input.trim();
+            if trimmed.is_empty() {
                 continue;
             }
 

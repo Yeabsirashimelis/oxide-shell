@@ -34,12 +34,8 @@ pub fn run_echo_command(raw: String) {
         }
     }
 
-    // The actual echo message
     let message = echo_parts.join(" ");
 
-    //
-    // 1. Handle STDOUT
-    //
     if let Some((path, append)) = stdout_path {
         let mut file = if append {
             OpenOptions::new()
@@ -55,15 +51,11 @@ pub fn run_echo_command(raw: String) {
         println!("{}", message);
     }
 
-    //
-    // 2. Handle STDERR redirection (touch file, NO writing)
-    //
     if let Some((path, append)) = stderr_path {
         let _ = if append {
             OpenOptions::new().create(true).append(true).open(path)
         } else {
             File::create(path)
         };
-        // Nothing is written — Codecrafters requires this
     }
 }
