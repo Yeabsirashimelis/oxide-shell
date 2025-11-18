@@ -67,7 +67,7 @@ impl Shell {
                                     {
                                         print!("\r\x1B[2K");
                                         input = matched.to_string();
-                                        print!("$ {}", input);
+                                        print!("$ {} ", input);
                                         io::stdout().flush().unwrap();
                                     }
                                 }
