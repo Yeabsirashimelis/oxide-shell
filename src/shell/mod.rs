@@ -84,7 +84,7 @@ impl Shell {
                 continue;
             }
 
-            match parse_command(&input) {
+            match parse_command(&trimmed) {
                 Some(Command::Exit(code)) => process::exit(code),
                 Some(cmd) => handle_command(cmd),
                 None => println!("{}: command not found", input.trim()),
