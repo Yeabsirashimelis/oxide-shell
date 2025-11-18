@@ -29,7 +29,6 @@ impl Shell {
             io::stdout().flush().unwrap();
 
             loop {
-                // Poll for up to 100ms for events
                 if poll(Duration::from_millis(100)).unwrap() {
                     if let Event::Key(key_event) = read().unwrap() {
                         match key_event.code {
@@ -39,7 +38,6 @@ impl Shell {
                                     break;
                                 }
                             }
-                            // Handle Ctrl+C (SIGINT) for clean exit
                             KeyCode::Char('c')
                                 if key_event.modifiers.contains(KeyModifiers::CONTROL) =>
                             {
@@ -56,7 +54,6 @@ impl Shell {
                             KeyCode::Backspace => {
                                 if key_event.kind == KeyEventKind::Press {
                                     if input.pop().is_some() {
-                                        // ANSI escape sequence to move cursor back, print space, move back again
                                         print!("\x08 \x08");
                                         io::stdout().flush().unwrap();
                                     }
@@ -68,10 +65,8 @@ impl Shell {
                                         .iter()
                                         .find(|cmd| cmd.starts_with(&input))
                                     {
-                                        // Clear current line and redraw prompt
                                         print!("\r\x1B[2K");
                                         input = matched.to_string();
-                                        // Trailing space is required for the autocompletion test to pass
                                         print!("$ {} ", input);
                                         io::stdout().flush().unwrap();
                                     }
@@ -84,23 +79,18 @@ impl Shell {
                 }
             }
 
-            // Use the trimmed string for parsing and execution
-            let trimmed_str = input.trim();
-            if trimmed_str.is_empty() {
-                input.clear();
+            let trimmed = input.trim();
+            if trimmed.is_empty() {
                 continue;
             }
 
-            match parse_command(trimmed_str) {
-                Some(Command::Exit(code)) => {
-                    // MUST disable raw mode before exiting the process
-                    disable_raw_mode().unwrap();
-                    process::exit(code);
-                }
+            match parse_command(&trimmed) {
+                Some(Command::Exit(code)) => process::exit(code),
                 Some(cmd) => handle_command(cmd),
-                None => println!("{}: command not found", trimmed_str),
+                None => println!("{}: command not found", input.trim()),
             }
             input.clear();
+            print!("\r\x1B[2K");
         }
     }
 }
