@@ -27,25 +27,15 @@ impl Shell {
         loop {
             print!("$ ");
             io::stdout().flush().unwrap();
-            //
+
             loop {
                 if poll(Duration::from_millis(100)).unwrap() {
                     if let Event::Key(key_event) = read().unwrap() {
                         match key_event.code {
                             KeyCode::Enter => {
                                 if key_event.kind == KeyEventKind::Press {
-                                    if let Some(c) = input.chars().last() {
-                                        if !c.is_whitespace() {
-                                            print!("\x1B[1D\x1B[K");
-                                            io::stdout().flush().unwrap();
-
-                                            input.pop();
-                                        }
-                                    }
-
-                                    input = input.trim_end().to_string();
-
                                     println!();
+                                    input = input.trim_end().to_string();
                                     break;
                                 }
                             }
@@ -76,14 +66,14 @@ impl Shell {
                                         .iter()
                                         .find(|cmd| cmd.starts_with(&input))
                                     {
-                                        print!("\r\x1B[2K");
+                                        // Clear the current line
+                                        print!("\r\x1B[2K$ ");
                                         input = matched.to_string();
-                                        print!("$ {} ", input);
+                                        print!("{}", input); // Removed the extra space
                                         io::stdout().flush().unwrap();
                                     }
                                 }
                             }
-
                             _ => {}
                         }
                     }
@@ -92,16 +82,19 @@ impl Shell {
 
             let trimmed = input.trim();
             if trimmed.is_empty() {
+                input.clear();
                 continue;
             }
 
             match parse_command(&trimmed) {
-                Some(Command::Exit(code)) => process::exit(code),
+                Some(Command::Exit(code)) => {
+                    disable_raw_mode().unwrap();
+                    process::exit(code);
+                }
                 Some(cmd) => handle_command(cmd),
-                None => println!("{}: command not found", input.trim()),
+                None => println!("{}: command not found", trimmed),
             }
             input.clear();
-            print!("\r\x1B[2K");
         }
     }
 }
