@@ -7,7 +7,7 @@ mod parser;
 
 use commands::{handle_command, Command};
 use crossterm::event::{poll, read, Event, KeyCode, KeyEventKind, KeyModifiers};
-// use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use parser::parse_command;
 
 pub struct Shell;
@@ -22,7 +22,7 @@ impl Shell {
 
         let available_commands = ["help", "echo", "exit", "ls"];
 
-        // enable_raw_mode().unwrap();
+        enable_raw_mode().unwrap();
 
         loop {
             print!("$ ");
@@ -34,15 +34,29 @@ impl Shell {
                         match key_event.code {
                             KeyCode::Enter => {
                                 if key_event.kind == KeyEventKind::Press {
-                                    println!();
+                                    let mut should_visually_pop = false;
+                                    if let Some(c) = input.chars().last() {
+                                        if !c.is_whitespace() {
+                                            should_visually_pop = true;
+                                        }
+                                    }
+
+                                    if should_visually_pop {
+                                        print!("\x08 \x08");
+                                        io::stdout().flush().unwrap();
+                                        input.pop();
+                                    }
+
                                     input = input.trim_end().to_string();
+
+                                    println!();
                                     break;
                                 }
                             }
                             KeyCode::Char('c')
                                 if key_event.modifiers.contains(KeyModifiers::CONTROL) =>
                             {
-                                // disable_raw_mode().unwrap();
+                                disable_raw_mode().unwrap();
                                 process::exit(0);
                             }
                             KeyCode::Char(c) => {
