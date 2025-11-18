@@ -27,7 +27,7 @@ impl Shell {
         loop {
             print!("$ ");
             io::stdout().flush().unwrap();
-
+            //
             loop {
                 if poll(Duration::from_millis(100)).unwrap() {
                     if let Event::Key(key_event) = read().unwrap() {
