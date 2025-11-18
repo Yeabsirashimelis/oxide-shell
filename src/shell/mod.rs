@@ -35,6 +35,7 @@ impl Shell {
                             KeyCode::Enter => {
                                 if key_event.kind == KeyEventKind::Press {
                                     println!();
+                                    input = input.trim_end().to_string();
                                     break;
                                 }
                             }
