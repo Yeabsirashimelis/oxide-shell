@@ -66,11 +66,10 @@ impl Shell {
                                         .iter()
                                         .find(|cmd| cmd.starts_with(&input))
                                     {
-                                        // Clear the current line
-                                        print!("\r\x1B[2K$ ");
-                                        input = matched.to_string();
-                                        print!("{}", input); // Removed the extra space
+                                        // Clear the current line and show prompt with autocompleted command + space
+                                        print!("\r\x1B[2K$ {} ", matched);
                                         io::stdout().flush().unwrap();
+                                        input = matched.to_string();
                                     }
                                 }
                             }
