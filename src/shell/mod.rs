@@ -27,7 +27,6 @@ impl Shell {
         loop {
             print!("$ ");
             io::stdout().flush().unwrap();
-///
             loop {
                 if poll(Duration::from_millis(100)).unwrap() {
                     if let Event::Key(key_event) = read().unwrap() {
@@ -69,7 +68,7 @@ impl Shell {
                                         // Clear the current line
                                         print!("\r\x1B[2K$ ");
                                         input = matched.to_string();
-                                        print!("{}", input); // Removed the extra space
+                                        print!("{} ", input); // Removed the extra space
                                         io::stdout().flush().unwrap();
                                     }
                                 }
