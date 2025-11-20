@@ -1,6 +1,6 @@
 use std::{
-    fs,
-    io::{stdout, Write},
+    fs::{self},
+    io::Write,
     path::Path,
 };
 
@@ -13,7 +13,6 @@ pub fn run_ls_command(command: &str) {
     let mut output_path: Option<(&str, bool)> = None; // (path, append)
     let mut error_path: Option<(&str, bool)> = None;
 
-    // Parse redirection
     let mut i = 1;
     while i < parts.len() {
         match parts[i] {
@@ -46,33 +45,36 @@ pub fn run_ls_command(command: &str) {
         i += 1;
     }
 
-    // Determine writers
-    let mut stdout_writer: Box<dyn Write> = if let Some((path, append)) = output_path {
-        Box::new(open_file(Path::new(path), append).unwrap())
-    } else {
-        Box::new(stdout())
-    };
-
-    let mut stderr_writer: Box<dyn Write> = if let Some((path, append)) = error_path {
-        Box::new(open_file(Path::new(path), append).unwrap())
-    } else {
-        // if no explicit error_path, write to same as stdout
-        stdout_writer.as_mut()
-    };
+    if let Some((path, append)) = output_path {
+        let _ = open_file(Path::new(path), append);
+    }
+    if let Some((path, append)) = error_path {
+        let _ = open_file(Path::new(path), append);
+    }
 
     let path_obj = Path::new(dir_path);
 
     if !path_obj.exists() {
         let err_msg = format!("ls: {}: No such file or directory\n", dir_path);
-        let _ = stderr_writer.write_all(err_msg.as_bytes());
-        let _ = stderr_writer.flush();
+        if let Some((path, append)) = error_path {
+            if let Ok(mut f) = open_file(Path::new(path), append) {
+                let _ = f.write_all(err_msg.as_bytes());
+            }
+        } else {
+            eprint!("{}", err_msg);
+        }
         return;
     }
 
     if !path_obj.is_dir() {
         let err_msg = format!("ls: {}: Not a directory\n", dir_path);
-        let _ = stderr_writer.write_all(err_msg.as_bytes());
-        let _ = stderr_writer.flush();
+        if let Some((path, append)) = error_path {
+            if let Ok(mut f) = open_file(Path::new(path), append) {
+                let _ = f.write_all(err_msg.as_bytes());
+            }
+        } else {
+            eprint!("{}", err_msg);
+        }
         return;
     }
 
@@ -85,15 +87,23 @@ pub fn run_ls_command(command: &str) {
         }
         Err(err) => {
             let err_msg = format!("ls: cannot read directory '{}': {}\n", dir_path, err);
-            let _ = stderr_writer.write_all(err_msg.as_bytes());
-            let _ = stderr_writer.flush();
+            if let Some((path, append)) = error_path {
+                if let Ok(mut f) = open_file(Path::new(path), append) {
+                    let _ = f.write_all(err_msg.as_bytes());
+                }
+            } else {
+                eprint!("{}", err_msg);
+            }
             return;
         }
     }
-
+    //
     entries.sort();
     let output = entries.join("\n") + "\n";
 
-    let _ = stdout_writer.write_all(output.as_bytes());
-    let _ = stdout_writer.flush();
+    if let Some((path, append)) = output_path {
+        let _ = open_file(Path::new(path), append).and_then(|mut f| f.write_all(output.as_bytes()));
+    } else {
+        print!("{}", output);
+    }
 }
