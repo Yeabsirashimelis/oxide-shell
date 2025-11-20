@@ -1,13 +1,7 @@
 use std::{
-    fs::{self},
+    fs,
     io::{stdout, Write},
     path::Path,
-};
-
-use crossterm::{
-    cursor::MoveTo,
-    execute,
-    terminal::{Clear, ClearType},
 };
 
 use crate::shell::commands::cat_command::open_file;
@@ -19,6 +13,7 @@ pub fn run_ls_command(command: &str) {
     let mut output_path: Option<(&str, bool)> = None; // (path, append)
     let mut error_path: Option<(&str, bool)> = None;
 
+    // Parse command arguments
     let mut i = 1;
     while i < parts.len() {
         match parts[i] {
@@ -51,45 +46,40 @@ pub fn run_ls_command(command: &str) {
         i += 1;
     }
 
-    if let Some((path, append)) = output_path {
-        let _ = open_file(Path::new(path), append);
-    }
-    if let Some((path, append)) = error_path {
-        let _ = open_file(Path::new(path), append);
-    }
-
     let path_obj = Path::new(dir_path);
 
-    if !path_obj.exists() {
-        let err_msg = format!("ls: {}: No such file or directory\n", dir_path);
+    // Helper to write errors
+    let write_error = |msg: &str| {
         if let Some((path, append)) = error_path {
             if let Ok(mut f) = open_file(Path::new(path), append) {
-                let _ = f.write_all(err_msg.as_bytes());
+                let _ = f.write_all(msg.as_bytes());
+            }
+        } else if let Some((path, append)) = output_path {
+            // If no 2> but output redirected, write errors to output file
+            if let Ok(mut f) = open_file(Path::new(path), append) {
+                let _ = f.write_all(msg.as_bytes());
             }
         } else {
-            eprint!("{}", err_msg);
+            // Default: print to stderr (new line, no extra spaces)
+            eprint!("{}", msg);
+            let _ = stdout().flush();
         }
+    };
+
+    // File/directory existence checks
+    if !path_obj.exists() {
+        let err_msg = format!("ls: {}: No such file or directory\n", dir_path);
+        write_error(&err_msg);
         return;
     }
 
     if !path_obj.is_dir() {
         let err_msg = format!("ls: {}: Not a directory\n", dir_path);
-        if let Some((path, append)) = error_path {
-            if let Ok(mut f) = open_file(Path::new(path), append) {
-                let _ = f.write_all(err_msg.as_bytes());
-            }
-        } else if let Some((path, append)) = output_path {
-            // if no 2> redirection, write error to output file
-            if let Ok(mut f) = open_file(Path::new(path), append) {
-                let _ = f.write_all(err_msg.as_bytes());
-            }
-        } else {
-            print_error(&err_msg);
-        }
-
+        write_error(&err_msg);
         return;
     }
 
+    // Read directory
     let mut entries: Vec<String> = Vec::new();
     match fs::read_dir(path_obj) {
         Ok(dir_entries) => {
@@ -99,30 +89,21 @@ pub fn run_ls_command(command: &str) {
         }
         Err(err) => {
             let err_msg = format!("ls: cannot read directory '{}': {}\n", dir_path, err);
-            if let Some((path, append)) = error_path {
-                if let Ok(mut f) = open_file(Path::new(path), append) {
-                    let _ = f.write_all(err_msg.as_bytes());
-                }
-            } else {
-                eprint!("{}", err_msg);
-            }
+            write_error(&err_msg);
             return;
         }
     }
-    //
+
     entries.sort();
     let output = entries.join("\n") + "\n";
 
+    // Write to output or stdout
     if let Some((path, append)) = output_path {
-        let _ = open_file(Path::new(path), append).and_then(|mut f| f.write_all(output.as_bytes()));
+        if let Ok(mut f) = open_file(Path::new(path), append) {
+            let _ = f.write_all(output.as_bytes());
+        }
     } else {
         print!("{}", output);
+        let _ = stdout().flush();
     }
-}
-
-fn print_error(err_msg: &str) {
-    // Move cursor to column 0 of current line and clear the line
-    execute!(stdout(), MoveTo(0, 0), Clear(ClearType::CurrentLine)).unwrap();
-    eprint!("{}", err_msg);
-    let _ = stdout().flush();
 }
