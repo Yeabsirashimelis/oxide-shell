@@ -72,7 +72,7 @@ impl Shell {
                                         .find(|cmd| cmd.starts_with(&input))
                                     {
                                         // autocomplete in place
-                                        print!("\r$ {}", matched);
+                                        print!("\r$ {} ", matched);
                                         io::stdout().flush().unwrap();
                                         input = matched.to_string();
                                     }
