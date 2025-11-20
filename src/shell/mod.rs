@@ -70,7 +70,7 @@ impl Shell {
                                         .find(|cmd| cmd.starts_with(&input))
                                     {
                                         // Clear the current line
-                                        print!("\r\x1B[2K$ ");
+                                        // print!("\r\x1B[2K$ ");
                                         input = matched.to_string();
                                         print!("{} ", input); // Removed the extra space
                                         io::stdout().flush().unwrap();
