@@ -1,7 +1,13 @@
 use std::{
     fs::{self},
-    io::Write,
+    io::{stdout, Write},
     path::Path,
+};
+
+use crossterm::{
+    cursor::MoveTo,
+    execute,
+    terminal::{Clear, ClearType},
 };
 
 use crate::shell::commands::cat_command::open_file;
@@ -72,9 +78,15 @@ pub fn run_ls_command(command: &str) {
             if let Ok(mut f) = open_file(Path::new(path), append) {
                 let _ = f.write_all(err_msg.as_bytes());
             }
+        } else if let Some((path, append)) = output_path {
+            // if no 2> redirection, write error to output file
+            if let Ok(mut f) = open_file(Path::new(path), append) {
+                let _ = f.write_all(err_msg.as_bytes());
+            }
         } else {
-            eprint!("{}", err_msg);
+            print_error(&err_msg);
         }
+
         return;
     }
 
@@ -106,4 +118,11 @@ pub fn run_ls_command(command: &str) {
     } else {
         print!("{}", output);
     }
+}
+
+fn print_error(err_msg: &str) {
+    // Move cursor to column 0 of current line and clear the line
+    execute!(stdout(), MoveTo(0, 0), Clear(ClearType::CurrentLine)).unwrap();
+    eprint!("{}", err_msg);
+    let _ = stdout().flush();
 }
