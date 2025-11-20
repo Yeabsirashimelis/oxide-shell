@@ -61,6 +61,7 @@ pub fn run_ls_command(command: &str) {
                 let _ = f.write_all(err_msg.as_bytes());
             }
         } else {
+            execute!(stdout(), Clear(ClearType::CurrentLine)).unwrap();
             eprint!("{}", err_msg);
         }
         return;
