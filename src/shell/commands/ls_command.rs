@@ -59,7 +59,7 @@ pub fn run_ls_command(command: &str) {
     }
 
     let path_obj = Path::new(dir_path);
-
+    //
     if !path_obj.exists() {
         let err_msg = format!("ls: {}: No such file or directory\n", dir_path);
         if let Some((path, append)) = error_path {
