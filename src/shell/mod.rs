@@ -32,7 +32,9 @@ impl Shell {
                 if poll(Duration::from_millis(100)).unwrap() {
                     if let Event::Key(key_event) = read().unwrap() {
                         match key_event.code {
-                            KeyCode::Enter => {
+                            KeyCode::Enter | KeyCode::Char('j')
+                                if key_event.modifiers.contains(KeyModifiers::CONTROL) =>
+                            {
                                 if key_event.kind == KeyEventKind::Press {
                                     println!();
                                     input = input.trim_end().to_string();
