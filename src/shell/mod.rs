@@ -68,7 +68,7 @@ impl Shell {
                                     {
                                         // Clear the current line by overwriting with spaces
                                         print!(
-                                            "\r$ {:width$}\r$ {}",
+                                            "\r$ {:width$}\r$ {} ",
                                             "",
                                             matched,
                                             width = input.len()
