@@ -1,7 +1,12 @@
 use std::{
     fs::{self},
-    io::Write,
+    io::{stdout, Write},
     path::Path,
+};
+
+use crossterm::{
+    execute,
+    terminal::{Clear, ClearType},
 };
 
 use crate::shell::commands::cat_command::open_file;
