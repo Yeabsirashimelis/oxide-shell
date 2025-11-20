@@ -65,7 +65,7 @@ pub fn run_ls_command(command: &str) {
         }
         return;
     }
-
+    //
     if !path_obj.is_dir() {
         let err_msg = format!("ls: {}: Not a directory\n", dir_path);
         if let Some((path, append)) = error_path {
