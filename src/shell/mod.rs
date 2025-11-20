@@ -32,16 +32,13 @@ impl Shell {
                 if poll(Duration::from_millis(100)).unwrap() {
                     if let Event::Key(key_event) = read().unwrap() {
                         match key_event.code {
-                            KeyCode::Enter | KeyCode::Char('j')
-                                if key_event.modifiers.contains(KeyModifiers::CONTROL) =>
-                            {
+                            KeyCode::Enter => {
                                 if key_event.kind == KeyEventKind::Press {
                                     println!();
                                     input = input.trim_end().to_string();
                                     break;
                                 }
                             }
-
                             KeyCode::Char('c')
                                 if key_event.modifiers.contains(KeyModifiers::CONTROL) =>
                             {
@@ -69,14 +66,19 @@ impl Shell {
                                         .iter()
                                         .find(|cmd| cmd.starts_with(&input))
                                     {
-                                        // Clear the current line
-                                        // print!("\r\x1B[2K$ ");
-                                        input = matched.to_string();
-                                        print!("{} ", input); // Removed the extra space
+                                        // Clear the current line by overwriting with spaces
+                                        print!(
+                                            "\r$ {:width$}\r$ {}",
+                                            "",
+                                            matched,
+                                            width = input.len()
+                                        );
                                         io::stdout().flush().unwrap();
+                                        input = matched.to_string();
                                     }
                                 }
                             }
+
                             _ => {}
                         }
                     }
