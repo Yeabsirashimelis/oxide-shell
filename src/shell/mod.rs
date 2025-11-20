@@ -1,6 +1,8 @@
-use std::io::{self, Write};
-use std::process;
-use std::time::Duration;
+use std::{
+    io::{self, Write},
+    process,
+    time::Duration,
+};
 
 mod commands;
 mod parser;
@@ -9,6 +11,8 @@ use commands::{handle_command, Command};
 use crossterm::event::{poll, read, Event, KeyCode, KeyEventKind, KeyModifiers};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use parser::parse_command;
+
+use crate::shell::commands::ls_command::run_ls_command;
 
 pub struct Shell;
 
@@ -19,28 +23,27 @@ impl Shell {
 
     pub fn run(&mut self) {
         let mut input = String::new();
-
         let available_commands = ["help", "echo", "exit", "ls"];
 
         enable_raw_mode().unwrap();
 
         loop {
+            // Print prompt
             print!("$ ");
             io::stdout().flush().unwrap();
+
+            input.clear();
+
             loop {
                 if poll(Duration::from_millis(100)).unwrap() {
                     if let Event::Key(key_event) = read().unwrap() {
                         match key_event.code {
-                            KeyCode::Enter | KeyCode::Char('j')
-                                if key_event.modifiers.contains(KeyModifiers::CONTROL) =>
-                            {
+                            KeyCode::Enter => {
                                 if key_event.kind == KeyEventKind::Press {
                                     println!();
-                                    input = input.trim_end().to_string();
-                                    break;
+                                    break; // submit command
                                 }
                             }
-
                             KeyCode::Char('c')
                                 if key_event.modifiers.contains(KeyModifiers::CONTROL) =>
                             {
@@ -68,11 +71,10 @@ impl Shell {
                                         .iter()
                                         .find(|cmd| cmd.starts_with(&input))
                                     {
-                                        // Clear the current line
-                                        print!("\r\x1B[2K$ ");
-                                        input = matched.to_string();
-                                        print!("{} ", input);
+                                        // autocomplete in place
+                                        print!("\r$ {}", matched);
                                         io::stdout().flush().unwrap();
+                                        input = matched.to_string();
                                     }
                                 }
                             }
@@ -84,19 +86,23 @@ impl Shell {
 
             let trimmed = input.trim();
             if trimmed.is_empty() {
-                input.clear();
                 continue;
             }
 
-            match parse_command(&trimmed) {
-                Some(Command::Exit(code)) => {
-                    disable_raw_mode().unwrap();
-                    process::exit(code);
+            // Handle commands
+            if trimmed.starts_with("ls") {
+                // call your fixed ls_command
+                run_ls_command(trimmed);
+            } else {
+                match parse_command(trimmed) {
+                    Some(Command::Exit(code)) => {
+                        disable_raw_mode().unwrap();
+                        process::exit(code);
+                    }
+                    Some(cmd) => handle_command(cmd),
+                    None => println!("{}: command not found", trimmed),
                 }
-                Some(cmd) => handle_command(cmd),
-                None => println!("{}: command not found", trimmed),
             }
-            input.clear();
         }
     }
 }

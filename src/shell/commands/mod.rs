@@ -2,7 +2,7 @@ mod cat_command;
 mod cd_command;
 mod echo_command;
 mod external_command;
-mod ls_command;
+pub mod ls_command;
 mod map_commands;
 mod pwd_command;
 mod type_command;
