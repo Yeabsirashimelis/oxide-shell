@@ -74,7 +74,7 @@ impl Completer for ShellCompleter {
             .filter(|&name| name.starts_with(prefix))
             .map(|name| Pair {
                 display: name.to_string(),
-                replacement: name.to_string(),
+                replacement: format!("{} ", name),
             })
             .collect();
 
