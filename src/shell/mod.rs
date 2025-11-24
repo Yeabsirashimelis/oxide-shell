@@ -1,58 +1,58 @@
-// src/shell/mod.rs (or where your ShellCompleter is defined)
-use std::io; // The compiler warns this is unused. You can safely remove it.
+use std::collections::HashMap;
 use std::process;
 
 use rustyline::completion::{Completer, Pair};
 use rustyline::error::ReadlineError;
-// We need to import all traits required by Helper and History from its specific path
 use rustyline::{
     highlight::Highlighter,
     hint::Hinter,
-    // FIX 1: Use the compiler's suggestion for History (E0603: trait `History` is private)
     history::History,
     validate::{ValidationContext, ValidationResult, Validator},
-    Context,
-    Editor,
-    Helper,
+    Context, Editor, Helper,
 };
 
-// Command placeholders
 mod commands;
 mod parser;
 
 use commands::{handle_command, Command};
 use parser::parse_command;
 
-// Your list of commands
-const AVAILABLE_COMMANDS: [&str; 4] = ["help", "echo", "exit", "ls"];
+use crate::shell::commands::map_external_commands;
+use crate::shell::commands::CommandType;
 
-// --- RUSTYLINE HELPER / COMPLETER IMPLEMENTATION ---
+const BUILTIN_COMMANDS: [&str; 4] = ["help", "echo", "exit", "ls"];
+
+fn path_executables_for_tabcompletiion() -> Vec<String> {
+    let mut external_commands: HashMap<String, CommandType> = HashMap::new();
+    map_external_commands(&mut external_commands);
+
+    let external_commands: Vec<String> = external_commands
+        .iter()
+        .map(|(key, _)| key.split(".").collect::<Vec<_>>()[0].to_string())
+        .collect();
+
+    external_commands
+}
+
 #[derive(Clone)]
-struct ShellCompleter;
+struct ShellCompleter {
+    external_commands: Vec<String>,
+}
 
-// FIX 2: Implement all required sub-traits (E0277 errors)
-// Hinter (Required by Helper)
 impl Hinter for ShellCompleter {
-    // Provide no hints
     type Hint = String;
 }
 
-// Highlighter (Required by Helper)
 impl Highlighter for ShellCompleter {}
 
-// Validator (Required by Helper)
 impl Validator for ShellCompleter {
     fn validate(&self, _: &mut ValidationContext) -> Result<ValidationResult, ReadlineError> {
-        // Always consider the line valid immediately
         Ok(ValidationResult::Valid(None))
     }
 }
 
-// Helper (Requires Completer, Hinter, Highlighter, Validator)
-// Now this implementation is valid because all dependencies are met.
 impl Helper for ShellCompleter {}
 
-// Completer (which you already implemented)
 impl Completer for ShellCompleter {
     type Candidate = Pair;
 
@@ -68,21 +68,29 @@ impl Completer for ShellCompleter {
         }
 
         let prefix = parts.first().unwrap_or(&"");
+        let mut matches: Vec<Pair> = Vec::new();
 
-        let matches = AVAILABLE_COMMANDS
-            .iter()
-            .filter(|&name| name.starts_with(prefix))
-            .map(|name| Pair {
-                display: name.to_string(),
-                replacement: format!("{} ", name),
-            })
-            .collect();
+        for name in BUILTIN_COMMANDS.iter() {
+            if name.starts_with(prefix) {
+                matches.push(Pair {
+                    display: name.to_string(),
+                    replacement: format!("{} ", name),
+                });
+            }
+        }
+
+        for name in self.external_commands.iter() {
+            if name.starts_with(prefix) {
+                matches.push(Pair {
+                    display: name.clone(),
+                    replacement: format!("{} ", name),
+                });
+            }
+        }
 
         Ok((0, matches))
     }
 }
-
-// --- SHELL IMPLEMENTATION ---
 
 pub struct Shell;
 
@@ -92,10 +100,9 @@ impl Shell {
     }
 
     pub fn run(&mut self) {
-        let completer = ShellCompleter {};
+        let external_commands = path_executables_for_tabcompletiion();
+        let completer = ShellCompleter { external_commands };
 
-        // The second generic argument `_` now successfully infers the default history type
-        // because we correctly imported `History` via `rustyline::history::History`.
         let mut rl = Editor::<ShellCompleter, _>::new().expect("Failed to create rustyline Editor");
 
         rl.set_helper(Some(completer));
@@ -105,7 +112,6 @@ impl Shell {
         }
 
         loop {
-            // ... (Your loop logic remains the same and will now compile)
             let prompt = "$ ";
             let readline = rl.readline(prompt);
 
