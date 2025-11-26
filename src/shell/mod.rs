@@ -100,6 +100,12 @@ impl Shell {
     }
 
     pub fn run(&mut self) {
+        // Display welcome message in green
+        println!("\x1b[32m╔════════════════════════════════════════════╗\x1b[0m");
+        println!("\x1b[32m║  CREATED BY YEABSIRA SHIMELIS             ║\x1b[0m");
+        println!("\x1b[32m╔════════════════════════════════════════════╗\x1b[0m");
+        println!();
+        
         let external_commands = path_executables_for_tabcompletiion();
         let completer = ShellCompleter { external_commands };
 
@@ -112,6 +118,7 @@ impl Shell {
         }
 
         loop {
+            // ... (Your loop logic remains the same and will now compile)
             let prompt = "$ ";
             let readline = rl.readline(prompt);
 
