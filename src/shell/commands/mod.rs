@@ -4,7 +4,7 @@ mod echo_command;
 mod external_command;
 pub mod ls_command;
 pub mod map_commands;
-mod pwd_command;
+pub mod pwd_command;
 mod type_command;
 
 use std::collections::HashMap;

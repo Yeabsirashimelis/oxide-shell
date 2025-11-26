@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::process;
+use std::{env, process};
 
 use rustyline::completion::{Completer, Pair};
 use rustyline::error::ReadlineError;
@@ -100,12 +100,11 @@ impl Shell {
     }
 
     pub fn run(&mut self) {
-        // Display welcome message in green
         println!("\x1b[32m╔════════════════════════════════════════════╗\x1b[0m");
         println!("\x1b[32m║  CREATED BY YEABSIRA SHIMELIS             ║\x1b[0m");
         println!("\x1b[32m╔════════════════════════════════════════════╗\x1b[0m");
         println!();
-        
+
         let external_commands = path_executables_for_tabcompletiion();
         let completer = ShellCompleter { external_commands };
 
@@ -113,14 +112,13 @@ impl Shell {
 
         rl.set_helper(Some(completer));
 
-        if rl.load_history("history.txt").is_err() {
-            // ...
-        }
+        if rl.load_history("history.txt").is_err() {}
 
         loop {
-            // ... (Your loop logic remains the same and will now compile)
-            let prompt = "$ ";
-            let readline = rl.readline(prompt);
+            let current_dir =
+                env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("<unknown>"));
+            let prompt = format!("[🦀 yeabshell {}]$ ", current_dir.display());
+            let readline = rl.readline(&prompt);
 
             match readline {
                 Ok(line) => {

@@ -41,3 +41,14 @@ exit 42
 pwd
 echo Hello from Yeabsira's Shell
 exit 0
+git add .
+git status
+git commit -m "readme file"
+git push myrepo master
+git add .
+git status
+git commit -m "update readme"
+git push myrepo master
+echo yeabsira
+pwd
+echo yes
