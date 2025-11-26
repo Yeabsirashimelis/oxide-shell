@@ -284,9 +284,10 @@ Please ensure your code:
 - Has tests for new features
 - Updates documentation as needed
 
+<!-- 
 ## 📝 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details. -->
 
 ## 👨‍💻 Author
 
@@ -315,6 +316,6 @@ If you have questions or run into issues:
 
 ---
 
-**Made with ❤️ and 🦀 Rust**
+**Made with effort and 🦀 Rust**
 
 ⭐ Star this repo if you found it helpful!
