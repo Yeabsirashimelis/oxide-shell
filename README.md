@@ -2,11 +2,26 @@
 
 [![Rust](https://img.shields.io/badge/rust-1.80+-orange.svg)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/Yeabsirashimelis/oxide-shell)](https://github.com/Yeabsirashimelis/oxide-shell/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/Yeabsirashimelis/oxide-shell/total)](https://github.com/Yeabsirashimelis/oxide-shell/releases)
 [![CodeCrafters](https://img.shields.io/badge/CodeCrafters-Shell-green.svg)](https://codecrafters.io)
 
 A fully-featured, POSIX-compliant shell implementation **built with Rust** by **Yeabsira Shimelis**. 
 
-**Oxide Shell** is a modern, fast, and interactive command-line shell that brings the power of Rust to your terminal. Created as part of the [CodeCrafters "Build Your Own Shell" Challenge](https://app.codecrafters.io/courses/shell/overview), this project demonstrates advanced systems programming concepts including command parsing, process management, I/O redirection, and more.
+**Oxide Shell** is a modern, fast, and interactive command-line shell that brings the power of Rust to your terminal. Experience blazing-fast performance, memory safety, and a clean command-line interface.
+
+Created as part of the [CodeCrafters "Build Your Own Shell" Challenge](https://app.codecrafters.io/courses/shell/overview), this project demonstrates advanced systems programming concepts including command parsing, process management, I/O redirection, and more.
+
+---
+
+## 🚀 Quick Install
+
+**Windows PowerShell:**
+```powershell
+Invoke-WebRequest -Uri "https://github.com/Yeabsirashimelis/oxide-shell/releases/latest/download/oxide-shell.exe" -OutFile "$env:USERPROFILE\Desktop\oxide-shell.exe"; Start-Process "$env:USERPROFILE\Desktop\oxide-shell.exe"
+```
+
+**Manual Download:** [Get oxide-shell.exe](https://github.com/Yeabsirashimelis/oxide-shell/releases/latest/download/oxide-shell.exe)
 
 ## ✨ Features
 
@@ -88,11 +103,16 @@ cd /usr/local/bin
 #### Option 1: Download Binary (Easiest)
 
 **Windows:**
-1. Download the latest [oxide-shell.exe](https://github.com/yourusername/oxide-shell/releases/latest/download/oxide-shell.exe)
+1. Download the latest [oxide-shell.exe](https://github.com/Yeabsirashimelis/oxide-shell/releases/latest/download/oxide-shell.exe)
 2. Double-click to run!
 
+**Or use this PowerShell one-liner (downloads to Desktop and opens automatically):**
+```powershell
+Invoke-WebRequest -Uri "https://github.com/Yeabsirashimelis/oxide-shell/releases/latest/download/oxide-shell.exe" -OutFile "$env:USERPROFILE\Desktop\oxide-shell.exe"; Start-Process "$env:USERPROFILE\Desktop\oxide-shell.exe"
+```
+
 **Linux/macOS:**
-1. Download the binary from [releases](https://github.com/yourusername/oxide-shell/releases)
+1. Download the binary from [releases](https://github.com/Yeabsirashimelis/oxide-shell/releases)
 2. Make it executable: `chmod +x oxide-shell`
 3. Run: `./oxide-shell`
 
@@ -100,7 +120,7 @@ cd /usr/local/bin
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/oxide-shell.git
+   git clone https://github.com/Yeabsirashimelis/oxide-shell.git
    cd oxide-shell
    ```
 
@@ -135,9 +155,10 @@ $ oxide-shell
 ║  CREATED BY YEABSIRA SHIMELIS             ║
 ╔════════════════════════════════════════════╗
 
-# You'll see the prompt
+# You'll see the prompt (starts in your home directory)
 $ pwd
-/home/user/oxide-shell
+C:\Users\YourName  # Windows
+/home/user         # Linux/macOS
 
 $ echo "Hello, Oxide Shell!"
 Hello, Oxide Shell!
@@ -145,9 +166,10 @@ Hello, Oxide Shell!
 $ type echo
 echo is a shell builtin
 
-$ cd ~
-$ pwd
-/home/user
+$ ls
+file1.txt  file2.txt  Documents  Downloads
+
+$ cd Documents
 
 $ exit
 ```
@@ -255,6 +277,7 @@ $ cat nonexistent.txt 2> errors.txt
 - **Startup time**: < 50ms
 - **Memory footprint**: ~5-10 MB
 - **Command execution**: Near-native speed
+- **Platform**: Windows, Linux, macOS
 
 ## 🎯 Implementation Details
 
