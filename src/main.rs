@@ -1,4 +1,4 @@
-use codecrafters_shell::shell::Shell;
+use oxide_shell::shell::Shell;
 
 fn main() {
     let mut shell = Shell::new();
