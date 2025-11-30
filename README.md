@@ -1,12 +1,12 @@
-# 🐚 Custom Shell in Rust
+# 🐚 Oxide Shell
 
-[![Rust](https://img.shields.io/badge/rust-1.88+-orange.svg)](https://www.rust-lang.org/)
+[![Rust](https://img.shields.io/badge/rust-1.80+-orange.svg)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![CodeCrafters](https://img.shields.io/badge/CodeCrafters-Shell-green.svg)](https://codecrafters.io)
 
 A fully-featured, POSIX-compliant shell implementation **built with Rust** by **Yeabsira Shimelis**. 
 
-Created as part of the [CodeCrafters "Build Your Own Shell" Challenge](https://app.codecrafters.io/courses/shell/overview), this project demonstrates advanced systems programming concepts including command parsing, process management, I/O redirection, and more.
+**Oxide Shell** is a modern, fast, and interactive command-line shell that brings the power of Rust to your terminal. Created as part of the [CodeCrafters "Build Your Own Shell" Challenge](https://app.codecrafters.io/courses/shell/overview), this project demonstrates advanced systems programming concepts including command parsing, process management, I/O redirection, and more.
 
 ## ✨ Features
 
@@ -85,10 +85,23 @@ cd /usr/local/bin
 
 ### Installation
 
+#### Option 1: Download Binary (Easiest)
+
+**Windows:**
+1. Download the latest [oxide-shell.exe](https://github.com/yourusername/oxide-shell/releases/latest/download/oxide-shell.exe)
+2. Double-click to run!
+
+**Linux/macOS:**
+1. Download the binary from [releases](https://github.com/yourusername/oxide-shell/releases)
+2. Make it executable: `chmod +x oxide-shell`
+3. Run: `./oxide-shell`
+
+#### Option 2: Build from Source
+
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/shell-rust.git
-   cd shell-rust
+   git clone https://github.com/yourusername/oxide-shell.git
+   cd oxide-shell
    ```
 
 2. **Build the project**
@@ -98,26 +111,36 @@ cd /usr/local/bin
 
 3. **Run the shell**
    ```bash
-   cargo run
+   cargo run --release
    ```
    
-   Or use the provided script:
+   Or directly run the binary:
    ```bash
-   ./your_program.sh
+   ./target/release/oxide-shell
    ```
+
+#### Option 3: Install with Cargo (Coming Soon)
+
+```bash
+cargo install oxide-shell
+```
 
 ### Quick Start
 
 ```bash
 # Start the shell
-$ cargo run
+$ oxide-shell
+
+╔════════════════════════════════════════════╗
+║  CREATED BY YEABSIRA SHIMELIS             ║
+╔════════════════════════════════════════════╗
 
 # You'll see the prompt
 $ pwd
-/home/user/shell-rust
+/home/user/oxide-shell
 
-$ echo "Hello, Shell!"
-Hello, Shell!
+$ echo "Hello, Oxide Shell!"
+Hello, Oxide Shell!
 
 $ type echo
 echo is a shell builtin
@@ -132,7 +155,7 @@ $ exit
 ## 📁 Project Structure
 
 ```
-shell-rust/
+oxide-shell/
 ├── src/
 │   ├── main.rs                      # Entry point
 │   ├── lib.rs                       # Library root

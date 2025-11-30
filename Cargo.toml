@@ -1,9 +1,16 @@
 [package]
-name = "codecrafters-shell"
+name = "oxide-shell"
 version = "0.1.0"
-authors = ["Codecrafters <hello@codecrafters.io>"]
+authors = ["Yeabsira Shimelis"]
 edition = "2021"
 rust-version = "1.80"
+description = "A POSIX-compliant shell built with Rust"
+license = "MIT"
+repository = "https://github.com/Yeabsirashimelis/oxide-DB"
+homepage = "https://github.com/Yeabsirashimelis/oxide-DB"
+keywords = ["shell", "cli", "repl", "posix", "terminal"]
+categories = ["command-line-utilities"]
+readme = "README.md"
 
 [dependencies]
 anyhow = "1.0.68"                                # error handling

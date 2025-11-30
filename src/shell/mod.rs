@@ -6,7 +6,6 @@ use rustyline::error::ReadlineError;
 use rustyline::{
     highlight::Highlighter,
     hint::Hinter,
-    history::History,
     validate::{ValidationContext, ValidationResult, Validator},
     Context, Editor, Helper,
 };
