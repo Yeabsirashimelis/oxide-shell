@@ -104,6 +104,12 @@ impl Shell {
         println!("\x1b[32m╔════════════════════════════════════════════╗\x1b[0m");
         println!();
 
+        // Change to user's home directory on startup
+        if let Ok(home_dir) = env::var("HOME")
+            .or_else(|_| env::var("USERPROFILE")) {
+            let _ = env::set_current_dir(home_dir);
+        }
+
         let external_commands = path_executables_for_tabcompletiion();
         let completer = ShellCompleter { external_commands };
 

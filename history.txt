@@ -52,3 +52,8 @@ git push myrepo master
 echo yeabsira
 pwd
 echo yes
+pwd
+git status
+git add .
+git commit -m "executable name chnaged"
+git push myrepo master
