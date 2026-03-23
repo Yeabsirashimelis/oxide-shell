@@ -109,7 +109,49 @@ fn get_variable_value(name: &str, _last_exit_code: i32) -> String {
     env::var(name).unwrap_or_default().replace('\\', "\\\\")
 }
 
-/// Expands glob patterns in tokens that weren't quoted.
+/// Gets the user's home directory.
+fn get_home_dir() -> Option<String> {
+    // Try HOME first (Unix), then USERPROFILE (Windows)
+    env::var("HOME")
+        .or_else(|_| env::var("USERPROFILE"))
+        .ok()
+}
+
+/// Expands tilde (~) at the start of a token to the home directory.
+/// - `~` expands to home directory
+/// - `~/path` expands to home directory + path
+/// - Quoted tokens are not expanded
+fn expand_tilde(token: &str, was_quoted: bool) -> String {
+    // Don't expand quoted tokens
+    if was_quoted {
+        return token.to_string();
+    }
+
+    // Only expand if token starts with ~
+    if !token.starts_with('~') {
+        return token.to_string();
+    }
+
+    // Get home directory
+    let home = match get_home_dir() {
+        Some(h) => h,
+        None => return token.to_string(), // No home dir, keep original
+    };
+
+    // Handle ~ alone or ~/path
+    if token == "~" {
+        home
+    } else if token.starts_with("~/") || token.starts_with("~\\") {
+        // Replace ~ with home directory
+        format!("{}{}", home, &token[1..])
+    } else {
+        // ~username or other patterns - keep as-is for now
+        token.to_string()
+    }
+}
+
+/// Expands tilde and glob patterns in tokens that weren't quoted.
+/// - `~` expands to home directory
 /// - `*` matches any characters (except path separator)
 /// - `?` matches a single character
 /// - `[abc]` matches any character in brackets
@@ -119,7 +161,10 @@ fn expand_globs(tokens: Vec<(String, bool)>) -> Vec<String> {
     let mut result = Vec::new();
 
     for (token, was_quoted) in tokens {
-        // Skip expansion for quoted tokens
+        // First, expand tilde (before glob expansion so ~/*.txt works)
+        let token = expand_tilde(&token, was_quoted);
+
+        // Skip glob expansion for quoted tokens
         if was_quoted {
             result.push(token);
             continue;
