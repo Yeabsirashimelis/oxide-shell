@@ -1,0 +1,101 @@
+#V2
+echo "Testing basic pipe:"
+echo hello | cat
+echo "Testing pwd pipe:"
+pwd | cat
+echo "Testing multi-stage pipe:"
+echo test123 | cat | cat
+echo "Testing quoted pipe (should NOT pipe):"
+echo "hello | world"
+echo "Testing ls pipe:"
+ls | findstr Desktop
+echo "Done!"
+exit
+echo "Testing variable expansion:"
+echo $HOME
+echo "Path is: $PATH"
+echo 'Single quotes: $HOME'
+echo "Testing export:"
+export MY_VAR=hello
+echo $MY_VAR
+export ANOTHER=world
+echo "$MY_VAR $ANOTHER"
+echo "Testing unset:"
+unset MY_VAR
+echo "After unset: $MY_VAR"
+echo "Testing special vars:"
+echo "Exit code: $?"
+echo "Done!"
+exit
+echo $HOME
+echo $USERPROFILE
+export TEST_PATH=C:\\test\\path
+echo $TEST_PATH
+exit
+export TEST_PATH="C:\\test\\path"
+echo $TEST_PATH
+exit
+echo "=== Variable Expansion Tests ==="
+echo "HOME: $HOME"
+echo "USERPROFILE: $USERPROFILE"
+echo "In double quotes: $HOME"
+echo 'In single quotes: $HOME'
+echo "Undefined var: [$UNDEFINED_VAR]"
+echo "Braces: ${HOME}"
+echo "Process ID: $$"
+echo "Exit code: $?"
+echo "=== Export Tests ==="
+export GREETING=hello
+export NAME=world
+echo "$GREETING $NAME"
+export SPACED="hello world"
+echo "Spaced: $SPACED"
+echo "=== Unset Tests ==="
+unset GREETING
+echo "After unset: [$GREETING]"
+echo "NAME still exists: $NAME"
+echo "=== Type Command ==="
+type export
+type unset
+echo "=== All Done ==="
+exit
+export SPACED="hello world"
+echo "Spaced: $SPACED"
+export MULTI="one two three"
+echo "Multi: $MULTI"
+exit
+echo "=== Variable Expansion Tests ==="
+echo "HOME: $HOME"
+echo "In double quotes: $HOME"
+echo 'In single quotes: $HOME'
+echo "Undefined var: [$UNDEFINED_VAR]"
+echo "Braces: ${HOME}"
+echo "Process ID: $$"
+echo "Exit code: $?"
+echo "=== Export Tests ==="
+export GREETING=hello
+export NAME=world
+echo "$GREETING $NAME"
+export MESSAGE="Hello World!"
+echo "Message: $MESSAGE"
+echo "=== Unset Tests ==="
+unset GREETING
+echo "After unset GREETING: [$GREETING]"
+echo "NAME still exists: $NAME"
+echo "=== Piping with vars ==="
+echo $HOME | cat
+echo "=== Type Command ==="
+type export
+type unset
+echo "=== All Done ==="
+exit
+ls *.txt
+echo *.txt
+echo test_*.txt
+pwd
+echo test_*.txt
+exit
+cd C:/Users/hp/Desktop/rust-projects/oxide-shell
+ls test_*.txt
+cat test_file1.txt
+exit

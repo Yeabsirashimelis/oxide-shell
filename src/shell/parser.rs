@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::env;
 
+use glob::glob;
+
 use super::commands::Command;
 use crate::shell::commands::{map_external_commands, CommandType};
 
@@ -109,6 +111,55 @@ fn get_variable_value(name: &str, _last_exit_code: i32) -> String {
         .replace('\\', "\\\\")
 }
 
+/// Expands glob patterns in tokens that weren't quoted.
+/// - `*` matches any characters (except path separator)
+/// - `?` matches a single character
+/// - `[abc]` matches any character in brackets
+/// - `[a-z]` matches character ranges
+/// Returns expanded tokens, preserving order.
+fn expand_globs(tokens: Vec<(String, bool)>) -> Vec<String> {
+    let mut result = Vec::new();
+
+    for (token, was_quoted) in tokens {
+        // Skip expansion for quoted tokens
+        if was_quoted {
+            result.push(token);
+            continue;
+        }
+
+        // Check if token contains glob characters
+        if !token.contains('*') && !token.contains('?') && !token.contains('[') {
+            result.push(token);
+            continue;
+        }
+
+        // Try to expand the glob pattern
+        match glob(&token) {
+            Ok(paths) => {
+                let mut matches: Vec<String> = paths
+                    .filter_map(|p| p.ok())
+                    .map(|p| p.to_string_lossy().to_string())
+                    .collect();
+
+                if matches.is_empty() {
+                    // No matches - keep original (bash behavior)
+                    result.push(token);
+                } else {
+                    // Sort alphabetically
+                    matches.sort();
+                    result.extend(matches);
+                }
+            }
+            Err(_) => {
+                // Invalid pattern - keep original
+                result.push(token);
+            }
+        }
+    }
+
+    result
+}
+
 /// Splits input by pipe operator `|`, respecting quotes.
 /// Returns None if there's no pipe, Some(segments) if there are pipes.
 pub fn split_pipeline(input: &str) -> Option<Vec<String>> {
@@ -187,10 +238,11 @@ pub fn parse_single_command(input: &str) -> Option<Command> {
         return None;
     }
 
-    let mut parts: Vec<String> = Vec::new();
+    let mut tokens_with_quote_info: Vec<(String, bool)> = Vec::new();
     let mut current = String::new();
     let mut in_single_quotes = false;
     let mut in_double_quotes = false;
+    let mut token_has_quoted_chars = false;
 
     let mut chars = input.trim().chars().peekable();
 
@@ -200,9 +252,13 @@ pub fn parse_single_command(input: &str) -> Option<Command> {
                 if let Some(next_char) = chars.next() {
                     if in_single_quotes {
                         current.push('\\'); // literal in single quotes
+                        token_has_quoted_chars = true;
                     }
                     if in_double_quotes && !"\\\"$`".contains(next_char) {
                         current.push('\\');
+                    }
+                    if in_single_quotes || in_double_quotes {
+                        token_has_quoted_chars = true;
                     }
                     current.push(next_char);
                 }
@@ -217,17 +273,30 @@ pub fn parse_single_command(input: &str) -> Option<Command> {
             }
             ' ' if !in_single_quotes && !in_double_quotes => {
                 if !current.is_empty() {
-                    parts.push(current.clone());
+                    tokens_with_quote_info.push((current.clone(), token_has_quoted_chars));
                     current.clear();
+                    token_has_quoted_chars = false;
                 }
             }
-            _ => current.push(c),
+            _ => {
+                if in_single_quotes || in_double_quotes {
+                    token_has_quoted_chars = true;
+                }
+                current.push(c);
+            }
         }
     }
 
     if !current.is_empty() {
-        parts.push(current);
+        tokens_with_quote_info.push((current, token_has_quoted_chars));
     }
+
+    if tokens_with_quote_info.is_empty() {
+        return None;
+    }
+
+    // Expand glob patterns (only for unquoted tokens)
+    let parts = expand_globs(tokens_with_quote_info);
 
     if parts.is_empty() {
         return None;
