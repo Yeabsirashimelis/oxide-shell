@@ -1,21 +1,4 @@
 #V2
-echo $MY_VAR
-export ANOTHER=world
-echo "$MY_VAR $ANOTHER"
-echo "Testing unset:"
-unset MY_VAR
-echo "After unset: $MY_VAR"
-echo "Testing special vars:"
-echo "Exit code: $?"
-echo "Done!"
-exit
-echo $HOME
-echo $USERPROFILE
-export TEST_PATH=C:\\test\\path
-echo $TEST_PATH
-exit
-export TEST_PATH="C:\\test\\path"
-echo $TEST_PATH
 exit
 echo "=== Variable Expansion Tests ==="
 echo "HOME: $HOME"
@@ -77,25 +60,42 @@ echo test_*.txt
 pwd
 echo test_*.txt
 exit
+echo === Test 1: Sequence operator ; ===
+echo first; echo second; echo third
+echo === Test 2: And operator && (success) ===
+echo success && echo "and also this"
+echo === Test 3: And operator && (failure) ===
+cd /nonexistent && echo "should not print"
+echo === Test 4: Or operator || (success - skip) ===
+echo success || echo "should not print"
+echo === Test 5: Or operator || (failure - continue) ===
+cd /nonexistent || echo "fallback executed"
+echo === Test 6: Mixed operators ===
+echo one; echo two && echo three
+echo === Test 7: Exit code check ===
+cd /nonexistent || echo "cd failed with error"
+exit
+echo "Test 1: semicolon"
+echo a; echo b; echo c
+echo "Test 2: and success"
+echo ok && echo "both run"
+echo "Test 3: and failure"
+cd /bad && echo "skipped"
+echo "Test 4: or success"
+echo ok || echo "skipped"
+echo "Test 5: or failure"
+cd /bad || echo "fallback"
+echo "Test 6: chain with pipe"
+echo hello | cat && echo "pipe worked"
+exit
+echo "Test: pipe within chain"
+echo hello | cat && echo "pipe worked"
+echo goodbye | cat || echo "should not print"
+exit
+echo "Testing history command"
+history
+exit
 cd C:/Users/hp/Desktop/rust-projects/oxide-shell
-echo === Test 1: Basic * wildcard ===
-echo *.txt
-echo === Test 2: Single char ? wildcard ===
-echo file?.txt
-echo === Test 3: Character class [123] ===
-echo file[123].txt
-echo === Test 4: Character range [A-B] ===
-echo file[A-B].txt
-echo === Test 5: Double quotes prevent expansion ===
-echo "*.txt"
-echo === Test 6: Single quotes prevent expansion ===
-echo '*.txt'
-echo === Test 7: No matches keeps original ===
-echo *.nonexistent
-echo === Test 8: Path pattern ===
-echo src/*.rs
-echo === Test 9: cat with glob ===
-cat file1.txt file2.txt
-echo === Test 10: Mixed quoted and unquoted ===
-echo "literal:" *.txt
+echo "Test: external command with input redirection"
+find < test_input.txt
 exit

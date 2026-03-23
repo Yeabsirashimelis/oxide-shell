@@ -39,7 +39,7 @@ pub fn run_cat_command_with_io(
     // Filter out redirection operators
     let files: Vec<String> = files
         .into_iter()
-        .filter(|s| !matches!(s.as_str(), ">" | ">>" | "1>" | "1>>" | "2>" | "2>>"))
+        .filter(|s| !matches!(s.as_str(), "<" | ">" | ">>" | "1>" | "1>>" | "2>" | "2>>"))
         .collect();
 
     // If no files specified and we have stdin, read from stdin
@@ -73,7 +73,16 @@ pub fn run_cat_command(args: Vec<String>) -> i32 {
 
     let mut output_path: Option<(String, bool)> = None;
     let mut error_path: Option<(String, bool)> = None;
+    let mut input_path: Option<String> = None;
     let mut exit_code = 0;
+
+    // Parse stdin redirection
+    if let Some(pos) = files.iter().position(|a| a == "<") {
+        if pos + 1 < files.len() {
+            input_path = Some(files[pos + 1].clone());
+            files.drain(pos..=pos + 1);
+        }
+    }
 
     // Parse stdout redirection
     if let Some(pos) = files.iter().position(|a| a == ">>" || a == "1>>") {
@@ -101,6 +110,11 @@ pub fn run_cat_command(args: Vec<String>) -> i32 {
             error_path = Some((files[pos + 1].clone(), false));
             files.drain(pos..=pos + 1);
         }
+    }
+
+    // If input redirection specified, use that file
+    if let Some(ref path) = input_path {
+        files = vec![path.clone()];
     }
 
     let mut total_content = Vec::new();

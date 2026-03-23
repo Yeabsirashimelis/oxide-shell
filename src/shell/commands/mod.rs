@@ -17,9 +17,8 @@ pub use crate::shell::commands::map_commands::{map_builtin_commands, map_externa
 use crate::shell::commands::{
     cat_command::run_cat_command, cd_command::run_cd_command, chain::execute_chain,
     echo_command::run_echo_command, export_command::run_export_command,
-    external_command::run_external_command, ls_command::run_ls_command,
-    pipeline::execute_pipeline, pwd_command::run_pwd_command, type_command::run_type_command,
-    unset_command::run_unset_command,
+    external_command::run_external_command, ls_command::run_ls_command, pipeline::execute_pipeline,
+    pwd_command::run_pwd_command, type_command::run_type_command, unset_command::run_unset_command,
 };
 
 /// Operators for command chaining
@@ -104,7 +103,10 @@ pub fn handle_command_with_exit(cmd: Command) -> i32 {
             run_unset_command(args);
             0
         }
-        Command::Chain { commands, operators } => execute_chain(commands, operators),
+        Command::Chain {
+            commands,
+            operators,
+        } => execute_chain(commands, operators),
         Command::Clear => {
             // ANSI escape: clear screen and move cursor to home
             print!("\x1b[2J\x1b[H");

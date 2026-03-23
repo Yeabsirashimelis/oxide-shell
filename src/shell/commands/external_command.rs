@@ -55,11 +55,17 @@ pub fn run_external_command(args: Vec<String>) -> i32 {
 
     let mut stdout_path: Option<(String, bool)> = None; // (path, append)
     let mut stderr_path: Option<(String, bool)> = None;
+    let mut stdin_path: Option<String> = None;
     let mut final_args: Vec<String> = Vec::new();
 
     // --- Parse arguments for redirection ---
     while let Some(arg) = args_iter.next() {
         match arg.as_str() {
+            "<" => {
+                if let Some(path) = args_iter.next() {
+                    stdin_path = Some(path);
+                }
+            }
             ">" | "1>" => {
                 if let Some(path) = args_iter.next() {
                     stdout_path = Some((path, false));
@@ -87,6 +93,19 @@ pub fn run_external_command(args: Vec<String>) -> i32 {
     let mut command = SysCommand::new(&cmd_name);
     if !final_args.is_empty() {
         command.args(&final_args);
+    }
+
+    // --- Redirect stdin ---
+    if let Some(ref path) = stdin_path {
+        match std::fs::File::open(path) {
+            Ok(file) => {
+                command.stdin(Stdio::from(file));
+            }
+            Err(e) => {
+                eprintln!("{}: {}", path, e);
+                return 1;
+            }
+        }
     }
 
     // --- Redirect stdout ---
