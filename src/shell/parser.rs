@@ -150,8 +150,148 @@ fn expand_tilde(token: &str, was_quoted: bool) -> String {
     }
 }
 
-/// Expands tilde and glob patterns in tokens that weren't quoted.
+/// Expands brace patterns in a token.
+/// - `{a,b,c}` expands to multiple tokens: `a`, `b`, `c`
+/// - `file{1,2,3}.txt` expands to: `file1.txt`, `file2.txt`, `file3.txt`
+/// - `{a,b}{1,2}` expands to: `a1`, `a2`, `b1`, `b2`
+/// Returns a vector of expanded tokens.
+fn expand_braces(token: &str) -> Vec<String> {
+    // Find the first brace pair
+    let mut depth = 0;
+    let mut brace_start: Option<usize> = None;
+    let mut brace_end: Option<usize> = None;
+
+    for (i, c) in token.char_indices() {
+        match c {
+            '{' => {
+                if depth == 0 {
+                    brace_start = Some(i);
+                }
+                depth += 1;
+            }
+            '}' => {
+                depth -= 1;
+                if depth == 0 && brace_start.is_some() {
+                    brace_end = Some(i);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // If no valid brace pair found, return the token as-is
+    let (start, end) = match (brace_start, brace_end) {
+        (Some(s), Some(e)) => (s, e),
+        _ => return vec![token.to_string()],
+    };
+
+    let prefix = &token[..start];
+    let suffix = &token[end + 1..];
+    let inner = &token[start + 1..end];
+
+    // Check if it's a range pattern like {1..5} or {a..z}
+    if let Some(expanded) = try_expand_range(inner) {
+        let mut result = Vec::new();
+        for item in expanded {
+            let combined = format!("{}{}{}", prefix, item, suffix);
+            // Recursively expand any remaining braces
+            result.extend(expand_braces(&combined));
+        }
+        return result;
+    }
+
+    // Split by commas (respecting nested braces)
+    let alternatives = split_brace_alternatives(inner);
+
+    if alternatives.len() <= 1 && !inner.contains(',') {
+        // No comma found, not a valid brace expansion
+        return vec![token.to_string()];
+    }
+
+    let mut result = Vec::new();
+    for alt in alternatives {
+        let combined = format!("{}{}{}", prefix, alt, suffix);
+        // Recursively expand any remaining braces
+        result.extend(expand_braces(&combined));
+    }
+
+    result
+}
+
+/// Try to expand a range pattern like "1..5" or "a..e"
+fn try_expand_range(inner: &str) -> Option<Vec<String>> {
+    let parts: Vec<&str> = inner.split("..").collect();
+    if parts.len() != 2 {
+        return None;
+    }
+
+    let start = parts[0].trim();
+    let end = parts[1].trim();
+
+    // Try numeric range
+    if let (Ok(start_num), Ok(end_num)) = (start.parse::<i32>(), end.parse::<i32>()) {
+        let range: Vec<String> = if start_num <= end_num {
+            (start_num..=end_num).map(|n| n.to_string()).collect()
+        } else {
+            (end_num..=start_num).rev().map(|n| n.to_string()).collect()
+        };
+        return Some(range);
+    }
+
+    // Try alphabetic range (single characters)
+    if start.len() == 1 && end.len() == 1 {
+        let start_char = start.chars().next().unwrap();
+        let end_char = end.chars().next().unwrap();
+
+        if start_char.is_ascii_alphabetic() && end_char.is_ascii_alphabetic() {
+            let range: Vec<String> = if start_char <= end_char {
+                (start_char..=end_char).map(|c| c.to_string()).collect()
+            } else {
+                (end_char..=start_char).rev().map(|c| c.to_string()).collect()
+            };
+            return Some(range);
+        }
+    }
+
+    None
+}
+
+/// Split brace content by commas, respecting nested braces
+fn split_brace_alternatives(inner: &str) -> Vec<String> {
+    let mut alternatives = Vec::new();
+    let mut current = String::new();
+    let mut depth = 0;
+
+    for c in inner.chars() {
+        match c {
+            '{' => {
+                depth += 1;
+                current.push(c);
+            }
+            '}' => {
+                depth -= 1;
+                current.push(c);
+            }
+            ',' if depth == 0 => {
+                alternatives.push(current.clone());
+                current.clear();
+            }
+            _ => current.push(c),
+        }
+    }
+
+    if !current.is_empty() || inner.ends_with(',') {
+        alternatives.push(current);
+    }
+
+    alternatives
+}
+
+/// Expands tilde, braces, and glob patterns in tokens that weren't quoted.
 /// - `~` expands to home directory
+/// - `{a,b,c}` expands to multiple tokens
+/// - `{1..5}` expands to numeric range
 /// - `*` matches any characters (except path separator)
 /// - `?` matches a single character
 /// - `[abc]` matches any character in brackets
@@ -161,41 +301,51 @@ fn expand_globs(tokens: Vec<(String, bool)>) -> Vec<String> {
     let mut result = Vec::new();
 
     for (token, was_quoted) in tokens {
-        // First, expand tilde (before glob expansion so ~/*.txt works)
-        let token = expand_tilde(&token, was_quoted);
-
-        // Skip glob expansion for quoted tokens
+        // Skip all expansion for quoted tokens
         if was_quoted {
             result.push(token);
             continue;
         }
 
-        // Check if token contains glob characters
-        if !token.contains('*') && !token.contains('?') && !token.contains('[') {
-            result.push(token);
-            continue;
-        }
+        // 1. Expand tilde
+        let token = expand_tilde(&token, false);
 
-        // Try to expand the glob pattern
-        match glob(&token) {
-            Ok(paths) => {
-                let mut matches: Vec<String> = paths
-                    .filter_map(|p| p.ok())
-                    .map(|p| p.to_string_lossy().to_string())
-                    .collect();
+        // 2. Expand braces (can produce multiple tokens)
+        let brace_expanded = if token.contains('{') && token.contains('}') {
+            expand_braces(&token)
+        } else {
+            vec![token]
+        };
 
-                if matches.is_empty() {
-                    // No matches - keep original (bash behavior)
-                    result.push(token);
-                } else {
-                    // Sort alphabetically
-                    matches.sort();
-                    result.extend(matches);
-                }
-            }
-            Err(_) => {
-                // Invalid pattern - keep original
+        // 3. Expand globs for each brace-expanded token
+        for token in brace_expanded {
+            // Check if token contains glob characters
+            if !token.contains('*') && !token.contains('?') && !token.contains('[') {
                 result.push(token);
+                continue;
+            }
+
+            // Try to expand the glob pattern
+            match glob(&token) {
+                Ok(paths) => {
+                    let mut matches: Vec<String> = paths
+                        .filter_map(|p| p.ok())
+                        .map(|p| p.to_string_lossy().to_string())
+                        .collect();
+
+                    if matches.is_empty() {
+                        // No matches - keep original (bash behavior)
+                        result.push(token);
+                    } else {
+                        // Sort alphabetically
+                        matches.sort();
+                        result.extend(matches);
+                    }
+                }
+                Err(_) => {
+                    // Invalid pattern - keep original
+                    result.push(token);
+                }
             }
         }
     }
