@@ -12,6 +12,12 @@ mod type_command;
 mod unset_command;
 
 use std::collections::HashMap;
+use std::sync::Mutex;
+
+use once_cell::sync::Lazy;
+
+/// Global alias storage
+static ALIASES: Lazy<Mutex<HashMap<String, String>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
 pub use crate::shell::commands::map_commands::{map_builtin_commands, map_external_commands};
 use crate::shell::commands::{
@@ -49,6 +55,8 @@ pub enum Command {
     },
     Clear,
     History,
+    Alias(String),
+    Unalias(String),
 }
 
 #[derive(Debug)]
@@ -116,6 +124,14 @@ pub fn handle_command_with_exit(cmd: Command) -> i32 {
             run_history_command();
             0
         }
+        Command::Alias(args) => {
+            run_alias_command(&args);
+            0
+        }
+        Command::Unalias(args) => {
+            run_unalias_command(&args);
+            0
+        }
         Command::Unknown(name) => {
             eprintln!("{}: command not found", name);
             127
@@ -142,6 +158,80 @@ fn run_history_command() {
             println!("No history available");
         }
     }
+}
+
+/// Handles the alias command
+/// - `alias` with no args: list all aliases
+/// - `alias name`: show specific alias
+/// - `alias name='value'` or `alias name=value`: set alias
+fn run_alias_command(args: &str) {
+    let args = args.trim();
+
+    // No arguments - list all aliases
+    if args.is_empty() {
+        let aliases = ALIASES.lock().unwrap();
+        if aliases.is_empty() {
+            // Nothing to print
+            return;
+        }
+        for (name, value) in aliases.iter() {
+            println!("alias {}='{}'", name, value);
+        }
+        return;
+    }
+
+    // Check if it's a definition (contains =)
+    if let Some(eq_pos) = args.find('=') {
+        let name = args[..eq_pos].trim();
+        let mut value = args[eq_pos + 1..].trim();
+
+        // Remove surrounding quotes if present
+        if (value.starts_with('\'') && value.ends_with('\''))
+            || (value.starts_with('"') && value.ends_with('"'))
+        {
+            value = &value[1..value.len() - 1];
+        }
+
+        if name.is_empty() {
+            eprintln!("alias: invalid alias name");
+            return;
+        }
+
+        let mut aliases = ALIASES.lock().unwrap();
+        aliases.insert(name.to_string(), value.to_string());
+    } else {
+        // Show specific alias
+        let aliases = ALIASES.lock().unwrap();
+        if let Some(value) = aliases.get(args) {
+            println!("alias {}='{}'", args, value);
+        } else {
+            eprintln!("alias: {}: not found", args);
+        }
+    }
+}
+
+/// Handles the unalias command
+fn run_unalias_command(args: &str) {
+    let args = args.trim();
+
+    if args.is_empty() {
+        eprintln!("unalias: usage: unalias name [name ...]");
+        return;
+    }
+
+    let mut aliases = ALIASES.lock().unwrap();
+
+    for name in args.split_whitespace() {
+        if aliases.remove(name).is_none() {
+            eprintln!("unalias: {}: not found", name);
+        }
+    }
+}
+
+/// Get the expansion for an alias, if it exists
+pub fn get_alias(name: &str) -> Option<String> {
+    let aliases = ALIASES.lock().unwrap();
+    aliases.get(name).cloned()
 }
 
 /// Handles a command (legacy wrapper, doesn't return exit code).

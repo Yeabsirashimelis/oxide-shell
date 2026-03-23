@@ -3,7 +3,7 @@ use std::env;
 
 use glob::glob;
 
-use super::commands::{ChainOperator, Command};
+use super::commands::{get_alias, ChainOperator, Command};
 use crate::shell::commands::{map_external_commands, CommandType};
 
 /// Expands environment variables in the input string.
@@ -492,13 +492,48 @@ pub fn parse_command(input: &str) -> Option<Command> {
     parse_command_with_exit_code(input, 0)
 }
 
+/// Expands aliases in the input.
+/// Only the first word is checked for alias expansion.
+/// Alias expansion is recursive but with a depth limit to prevent infinite loops.
+fn expand_alias(input: &str, depth: usize) -> String {
+    if depth > 10 {
+        // Prevent infinite recursion
+        return input.to_string();
+    }
+
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        return input.to_string();
+    }
+
+    // Find the first word (command name)
+    let first_word_end = trimmed
+        .find(|c: char| c.is_whitespace())
+        .unwrap_or(trimmed.len());
+    let first_word = &trimmed[..first_word_end];
+    let rest = &trimmed[first_word_end..];
+
+    // Check if first word is an alias
+    if let Some(expansion) = get_alias(first_word) {
+        // Replace the command with its expansion
+        let expanded = format!("{}{}", expansion, rest);
+        // Recursively expand in case the alias expands to another alias
+        expand_alias(&expanded, depth + 1)
+    } else {
+        input.to_string()
+    }
+}
+
 pub fn parse_command_with_exit_code(input: &str, last_exit_code: i32) -> Option<Command> {
     if input.trim().is_empty() {
         return None;
     }
 
-    // Expand environment variables first
-    let expanded = expand_variables(input, last_exit_code);
+    // Expand aliases first (before variable expansion)
+    let aliased = expand_alias(input, 0);
+
+    // Expand environment variables
+    let expanded = expand_variables(&aliased, last_exit_code);
 
     // Check for command chaining first (&&, ||, ;)
     if let Some((commands, operators)) = split_chain(&expanded) {
@@ -643,6 +678,8 @@ pub fn parse_single_command(input: &str) -> Option<Command> {
         "ls" => Some(Command::Ls(args)),
         "clear" => Some(Command::Clear),
         "history" => Some(Command::History),
+        "alias" => Some(Command::Alias(args)),
+        "unalias" => Some(Command::Unalias(args)),
         _ => {
             if external_commands.contains_key(&cmd_to_check) {
                 let args_vec: Vec<String> = parts.iter().map(|s| s.to_string()).collect();
