@@ -4,6 +4,7 @@ mod echo_command;
 mod external_command;
 pub mod ls_command;
 pub mod map_commands;
+mod pipeline;
 pub mod pwd_command;
 mod type_command;
 
@@ -13,7 +14,7 @@ pub use crate::shell::commands::map_commands::{map_builtin_commands, map_externa
 use crate::shell::commands::{
     cat_command::run_cat_command, cd_command::run_cd_command, echo_command::run_echo_command,
     external_command::run_external_command, ls_command::run_ls_command,
-    pwd_command::run_pwd_command, type_command::run_type_command,
+    pipeline::execute_pipeline, pwd_command::run_pwd_command, type_command::run_type_command,
 };
 
 pub enum Command {
@@ -26,9 +27,11 @@ pub enum Command {
     Cat(Vec<String>),
     Ls(String),
     External(Vec<String>),
+    Pipeline(Vec<String>),
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum CommandType {
     Builtin,
     Alias(String),
@@ -56,6 +59,7 @@ pub fn handle_command(cmd: Command) {
         Command::Cat(paths) => run_cat_command(paths),
         Command::Ls(path) => run_ls_command(&path),
         Command::External(args) => run_external_command(args),
+        Command::Pipeline(segments) => execute_pipeline(segments),
         Command::Unknown(name) => println!("{}: command not found", name),
     }
 }

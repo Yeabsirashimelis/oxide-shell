@@ -28,6 +28,46 @@ fn read_file(path: &str) -> Result<String, io::Error> {
     Ok(content)
 }
 
+/// Cat command with generic reader/writer for pipeline support.
+pub fn run_cat_command_with_io(
+    args: Vec<String>,
+    stdin_reader: Option<Box<dyn Read>>,
+    writer: &mut dyn Write,
+) {
+    let files: Vec<String> = args.into_iter().skip(1).collect();
+
+    // Filter out redirection operators
+    let files: Vec<String> = files
+        .into_iter()
+        .filter(|s| !matches!(s.as_str(), ">" | ">>" | "1>" | "1>>" | "2>" | "2>>"))
+        .collect();
+
+    // If no files specified and we have stdin, read from stdin
+    if files.is_empty() {
+        if let Some(mut reader) = stdin_reader {
+            let mut content = String::new();
+            if reader.read_to_string(&mut content).is_ok() {
+                let _ = write!(writer, "{}", content);
+            }
+        }
+        return;
+    }
+
+    // Otherwise read from files
+    for file_path in &files {
+        let clean_path = unquote_path(file_path);
+
+        match read_file(&clean_path) {
+            Ok(content) => {
+                let _ = write!(writer, "{}", content);
+            }
+            Err(_) => {
+                eprintln!("cat: {}: No such file or directory", clean_path);
+            }
+        }
+    }
+}
+
 pub fn run_cat_command(args: Vec<String>) {
     let mut files: Vec<String> = args.into_iter().skip(1).collect();
 

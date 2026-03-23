@@ -6,6 +6,52 @@ use std::{
 
 use crate::shell::commands::cat_command::open_file;
 
+/// LS command with generic writer for pipeline support.
+pub fn run_ls_command_with_writer(command: &str, writer: &mut dyn Write) {
+    let parts: Vec<&str> = command.trim().split_whitespace().collect();
+
+    let mut dir_path = ".";
+
+    // Parse arguments, skip redirection operators in pipeline context
+    for part in parts.iter() {
+        if !["ls", ">", ">>", "1>", "1>>", "2>", "2>>"].contains(part) {
+            // Check if it's not a target of redirection (simple heuristic)
+            dir_path = part;
+            break;
+        }
+    }
+
+    let path_obj = Path::new(dir_path);
+
+    if !path_obj.exists() {
+        eprintln!("ls: {}: No such file or directory", dir_path);
+        return;
+    }
+
+    if !path_obj.is_dir() {
+        eprintln!("ls: {}: Not a directory", dir_path);
+        return;
+    }
+
+    let mut entries: Vec<String> = Vec::new();
+    match fs::read_dir(path_obj) {
+        Ok(dir_entries) => {
+            for entry in dir_entries.flatten() {
+                entries.push(entry.file_name().to_string_lossy().to_string());
+            }
+        }
+        Err(err) => {
+            eprintln!("ls: cannot read directory '{}': {}", dir_path, err);
+            return;
+        }
+    }
+
+    entries.sort();
+    for entry in entries {
+        let _ = writeln!(writer, "{}", entry);
+    }
+}
+
 pub fn run_ls_command(command: &str) {
     let parts: Vec<&str> = command.trim().split_whitespace().collect();
 

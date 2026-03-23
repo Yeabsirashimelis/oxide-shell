@@ -1,3 +1,0 @@
-yeab
-Download: https://github.com/Yeabsirashimelis/oxide-shell/releases/download/v0.1.0/oxide-shell.exe 
-Invoke-WebRequest -Uri "https://github.com/Yeabsirashimelis/oxide-shell/releases/latest/download/oxide-shell.exe" -OutFile "oxide-shell.exe"; .\oxide-shell.exe

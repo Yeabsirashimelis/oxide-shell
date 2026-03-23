@@ -18,3 +18,4 @@ bytes = "1.3.0"                                  # helps manage buffers
 thiserror = "1.0.38"                             # error handling
 rustyline = "14.0.0"
 once_cell = "1.19.0"
+os_pipe = "1"                                    # cross-platform pipes for piping

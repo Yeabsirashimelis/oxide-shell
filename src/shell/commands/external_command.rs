@@ -1,7 +1,41 @@
 use crate::shell::commands::cat_command::open_file;
 use std::io::Write;
 use std::path::Path;
-use std::process::{Command as SysCommand, Stdio};
+use std::process::{Child, Command as SysCommand, Stdio};
+
+/// External command with configurable stdin/stdout for pipeline support.
+/// Returns the child process for the caller to wait on.
+#[allow(dead_code)]
+pub fn run_external_command_with_io(
+    args: Vec<String>,
+    stdin: Stdio,
+    stdout: Stdio,
+) -> std::io::Result<Child> {
+    if args.is_empty() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "No command provided",
+        ));
+    }
+
+    let mut cmd_name = args[0].clone();
+
+    #[cfg(windows)]
+    {
+        if !cmd_name.ends_with(".exe") {
+            cmd_name = format!("{}.exe", cmd_name);
+        }
+    }
+
+    let final_args: Vec<String> = args.into_iter().skip(1).collect();
+
+    let mut command = SysCommand::new(&cmd_name);
+    if !final_args.is_empty() {
+        command.args(&final_args);
+    }
+
+    command.stdin(stdin).stdout(stdout).spawn()
+}
 
 pub fn run_external_command(args: Vec<String>) {
     if args.is_empty() {

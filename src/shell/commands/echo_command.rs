@@ -1,6 +1,29 @@
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 
+/// Echo command with generic writer for pipeline support.
+pub fn run_echo_command_with_writer(raw: String, writer: &mut dyn Write) {
+    let tokens: Vec<&str> = raw.split_whitespace().collect();
+    let mut echo_parts: Vec<&str> = Vec::new();
+
+    let mut i = 0;
+    while i < tokens.len() {
+        match tokens[i] {
+            ">" | "1>" | ">>" | "1>>" | "2>" | "2>>" => {
+                // Skip redirection in pipeline context
+                i += 2;
+            }
+            _ => {
+                echo_parts.push(tokens[i]);
+                i += 1;
+            }
+        }
+    }
+
+    let message = echo_parts.join(" ");
+    let _ = writeln!(writer, "{}", message);
+}
+
 pub fn run_echo_command(raw: String) {
     let tokens: Vec<&str> = raw.split_whitespace().collect();
 
