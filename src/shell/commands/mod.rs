@@ -48,6 +48,8 @@ pub enum Command {
         commands: Vec<String>,
         operators: Vec<ChainOperator>,
     },
+    Clear,
+    History,
 }
 
 #[derive(Debug)]
@@ -103,9 +105,39 @@ pub fn handle_command_with_exit(cmd: Command) -> i32 {
             0
         }
         Command::Chain { commands, operators } => execute_chain(commands, operators),
+        Command::Clear => {
+            // ANSI escape: clear screen and move cursor to home
+            print!("\x1b[2J\x1b[H");
+            0
+        }
+        Command::History => {
+            run_history_command();
+            0
+        }
         Command::Unknown(name) => {
             eprintln!("{}: command not found", name);
             127
+        }
+    }
+}
+
+/// Displays command history from history.txt
+fn run_history_command() {
+    use std::fs::File;
+    use std::io::{BufRead, BufReader};
+
+    let history_path = "history.txt";
+    match File::open(history_path) {
+        Ok(file) => {
+            let reader = BufReader::new(file);
+            for (i, line) in reader.lines().enumerate() {
+                if let Ok(cmd) = line {
+                    println!("{:5}  {}", i + 1, cmd);
+                }
+            }
+        }
+        Err(_) => {
+            println!("No history available");
         }
     }
 }

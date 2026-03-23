@@ -491,6 +491,8 @@ pub fn parse_single_command(input: &str) -> Option<Command> {
             Some(Command::Cat(args_vec))
         }
         "ls" => Some(Command::Ls(args)),
+        "clear" => Some(Command::Clear),
+        "history" => Some(Command::History),
         _ => {
             if external_commands.contains_key(&cmd_to_check) {
                 let args_vec: Vec<String> = parts.iter().map(|s| s.to_string()).collect();
