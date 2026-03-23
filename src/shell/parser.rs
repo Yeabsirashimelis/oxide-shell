@@ -1,13 +1,16 @@
 use std::collections::HashMap;
 use std::env;
+use std::process::{Command as ProcessCommand, Stdio};
 
 use glob::glob;
 
 use super::commands::{get_alias, ChainOperator, Command};
 use crate::shell::commands::{map_external_commands, CommandType};
 
-/// Expands environment variables in the input string.
+/// Expands environment variables and command substitutions in the input string.
 /// - `$VAR` and `${VAR}` are expanded to their values
+/// - `$(command)` is replaced with command output
+/// - `` `command` `` is replaced with command output (backtick syntax)
 /// - Single quotes prevent expansion: `'$VAR'` stays literal
 /// - Double quotes allow expansion: `"$VAR"` is expanded
 /// - `\$` is a literal dollar sign
@@ -21,10 +24,10 @@ pub fn expand_variables(input: &str, last_exit_code: i32) -> String {
     while let Some(c) = chars.next() {
         match c {
             '\\' => {
-                // Check if escaping a dollar sign
+                // Check if escaping a dollar sign or backtick
                 if let Some(&next) = chars.peek() {
-                    if next == '$' && !in_single_quotes {
-                        result.push('$');
+                    if (next == '$' || next == '`') && !in_single_quotes {
+                        result.push(next);
                         chars.next();
                         continue;
                     }
@@ -40,15 +43,125 @@ pub fn expand_variables(input: &str, last_exit_code: i32) -> String {
                 result.push(c);
             }
             '$' if !in_single_quotes => {
-                // Variable expansion
-                let var_value = extract_and_expand_variable(&mut chars, last_exit_code);
-                result.push_str(&var_value);
+                // Check for command substitution $(...)
+                if chars.peek() == Some(&'(') {
+                    chars.next(); // consume '('
+                    let cmd_output =
+                        extract_and_run_command_substitution(&mut chars, last_exit_code);
+                    result.push_str(&cmd_output);
+                } else {
+                    // Variable expansion
+                    let var_value = extract_and_expand_variable(&mut chars, last_exit_code);
+                    result.push_str(&var_value);
+                }
+            }
+            '`' if !in_single_quotes => {
+                // Backtick command substitution
+                let cmd_output = extract_and_run_backtick_substitution(&mut chars, last_exit_code);
+                result.push_str(&cmd_output);
             }
             _ => result.push(c),
         }
     }
 
     result
+}
+
+/// Extracts command from $(...) and executes it, returning the output.
+fn extract_and_run_command_substitution(
+    chars: &mut std::iter::Peekable<std::str::Chars>,
+    last_exit_code: i32,
+) -> String {
+    let mut command = String::new();
+    let mut depth = 1;
+
+    while let Some(c) = chars.next() {
+        match c {
+            '(' => {
+                depth += 1;
+                command.push(c);
+            }
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    break;
+                }
+                command.push(c);
+            }
+            _ => command.push(c),
+        }
+    }
+
+    execute_command_substitution(&command, last_exit_code)
+}
+
+/// Extracts command from `...` and executes it, returning the output.
+fn extract_and_run_backtick_substitution(
+    chars: &mut std::iter::Peekable<std::str::Chars>,
+    last_exit_code: i32,
+) -> String {
+    let mut command = String::new();
+
+    while let Some(c) = chars.next() {
+        match c {
+            '`' => break,
+            '\\' => {
+                // In backticks, \` is an escaped backtick
+                if chars.peek() == Some(&'`') {
+                    command.push('`');
+                    chars.next();
+                } else {
+                    command.push(c);
+                }
+            }
+            _ => command.push(c),
+        }
+    }
+
+    execute_command_substitution(&command, last_exit_code)
+}
+
+/// Executes a command and returns its stdout output.
+fn execute_command_substitution(command: &str, last_exit_code: i32) -> String {
+    let command = command.trim();
+    if command.is_empty() {
+        return String::new();
+    }
+
+    // Expand variables in the command first (recursive)
+    let expanded_cmd = expand_variables(command, last_exit_code);
+
+    // Try to execute as external command
+    let output = if cfg!(windows) {
+        // On Windows, try cmd.exe for built-in commands or direct execution
+        ProcessCommand::new("cmd")
+            .args(["/C", &expanded_cmd])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .output()
+    } else {
+        // On Unix, use sh -c
+        ProcessCommand::new("sh")
+            .args(["-c", &expanded_cmd])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .output()
+    };
+
+    match output {
+        Ok(output) => {
+            let mut stdout = String::from_utf8_lossy(&output.stdout).to_string();
+            // Remove trailing newline (common shell behavior)
+            if stdout.ends_with('\n') {
+                stdout.pop();
+                if stdout.ends_with('\r') {
+                    stdout.pop();
+                }
+            }
+            stdout
+        }
+        Err(_) => String::new(),
+    }
 }
 
 /// Extracts variable name and returns its value.
@@ -112,9 +225,7 @@ fn get_variable_value(name: &str, _last_exit_code: i32) -> String {
 /// Gets the user's home directory.
 fn get_home_dir() -> Option<String> {
     // Try HOME first (Unix), then USERPROFILE (Windows)
-    env::var("HOME")
-        .or_else(|_| env::var("USERPROFILE"))
-        .ok()
+    env::var("HOME").or_else(|_| env::var("USERPROFILE")).ok()
 }
 
 /// Expands tilde (~) at the start of a token to the home directory.
@@ -248,7 +359,10 @@ fn try_expand_range(inner: &str) -> Option<Vec<String>> {
             let range: Vec<String> = if start_char <= end_char {
                 (start_char..=end_char).map(|c| c.to_string()).collect()
             } else {
-                (end_char..=start_char).rev().map(|c| c.to_string()).collect()
+                (end_char..=start_char)
+                    .rev()
+                    .map(|c| c.to_string())
+                    .collect()
             };
             return Some(range);
         }
@@ -537,7 +651,10 @@ pub fn parse_command_with_exit_code(input: &str, last_exit_code: i32) -> Option<
 
     // Check for command chaining first (&&, ||, ;)
     if let Some((commands, operators)) = split_chain(&expanded) {
-        return Some(Command::Chain { commands, operators });
+        return Some(Command::Chain {
+            commands,
+            operators,
+        });
     }
 
     // Check for pipeline
