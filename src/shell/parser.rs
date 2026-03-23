@@ -1,7 +1,113 @@
 use std::collections::HashMap;
+use std::env;
 
 use super::commands::Command;
 use crate::shell::commands::{map_external_commands, CommandType};
+
+/// Expands environment variables in the input string.
+/// - `$VAR` and `${VAR}` are expanded to their values
+/// - Single quotes prevent expansion: `'$VAR'` stays literal
+/// - Double quotes allow expansion: `"$VAR"` is expanded
+/// - `\$` is a literal dollar sign
+/// - Undefined variables expand to empty string
+pub fn expand_variables(input: &str, last_exit_code: i32) -> String {
+    let mut result = String::new();
+    let mut chars = input.chars().peekable();
+    let mut in_single_quotes = false;
+    let mut in_double_quotes = false;
+
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' => {
+                // Check if escaping a dollar sign
+                if let Some(&next) = chars.peek() {
+                    if next == '$' && !in_single_quotes {
+                        result.push('$');
+                        chars.next();
+                        continue;
+                    }
+                }
+                result.push(c);
+            }
+            '\'' if !in_double_quotes => {
+                in_single_quotes = !in_single_quotes;
+                result.push(c);
+            }
+            '"' if !in_single_quotes => {
+                in_double_quotes = !in_double_quotes;
+                result.push(c);
+            }
+            '$' if !in_single_quotes => {
+                // Variable expansion
+                let var_value = extract_and_expand_variable(&mut chars, last_exit_code);
+                result.push_str(&var_value);
+            }
+            _ => result.push(c),
+        }
+    }
+
+    result
+}
+
+/// Extracts variable name and returns its value.
+fn extract_and_expand_variable(
+    chars: &mut std::iter::Peekable<std::str::Chars>,
+    last_exit_code: i32,
+) -> String {
+    // Check for ${VAR} syntax
+    if chars.peek() == Some(&'{') {
+        chars.next(); // consume '{'
+        let mut var_name = String::new();
+        while let Some(&c) = chars.peek() {
+            if c == '}' {
+                chars.next(); // consume '}'
+                break;
+            }
+            var_name.push(c);
+            chars.next();
+        }
+        return get_variable_value(&var_name, last_exit_code);
+    }
+
+    // Check for special variables
+    if let Some(&c) = chars.peek() {
+        // $? - last exit code
+        if c == '?' {
+            chars.next();
+            return last_exit_code.to_string();
+        }
+        // $$ - process ID (optional, but common)
+        if c == '$' {
+            chars.next();
+            return std::process::id().to_string();
+        }
+    }
+
+    // Regular $VAR syntax - collect alphanumeric and underscore
+    let mut var_name = String::new();
+    while let Some(&c) = chars.peek() {
+        if c.is_alphanumeric() || c == '_' {
+            var_name.push(c);
+            chars.next();
+        } else {
+            break;
+        }
+    }
+
+    if var_name.is_empty() {
+        return "$".to_string(); // Lone $ stays as $
+    }
+
+    get_variable_value(&var_name, last_exit_code)
+}
+
+/// Gets the value of an environment variable.
+/// Escapes backslashes so they survive the parsing stage.
+fn get_variable_value(name: &str, _last_exit_code: i32) -> String {
+    env::var(name)
+        .unwrap_or_default()
+        .replace('\\', "\\\\")
+}
 
 /// Splits input by pipe operator `|`, respecting quotes.
 /// Returns None if there's no pipe, Some(segments) if there are pipes.
@@ -55,16 +161,23 @@ pub fn split_pipeline(input: &str) -> Option<Vec<String>> {
 }
 
 pub fn parse_command(input: &str) -> Option<Command> {
+    parse_command_with_exit_code(input, 0)
+}
+
+pub fn parse_command_with_exit_code(input: &str, last_exit_code: i32) -> Option<Command> {
     if input.trim().is_empty() {
         return None;
     }
 
+    // Expand environment variables first
+    let expanded = expand_variables(input, last_exit_code);
+
     // Check for pipeline first
-    if let Some(segments) = split_pipeline(input) {
+    if let Some(segments) = split_pipeline(&expanded) {
         return Some(Command::Pipeline(segments));
     }
 
-    parse_single_command(input)
+    parse_single_command(&expanded)
 }
 
 /// Parses a single command (no pipeline detection).
@@ -170,6 +283,8 @@ pub fn parse_single_command(input: &str) -> Option<Command> {
         "type" => Some(Command::Type(args)),
         "pwd" => Some(Command::PWD),
         "cd" => Some(Command::CD(args)),
+        "export" => Some(Command::Export(args)),
+        "unset" => Some(Command::Unset(args)),
         "cat" => {
             let args_vec: Vec<String> = parts.iter().map(|s| s.to_string()).collect();
             Some(Command::Cat(args_vec))

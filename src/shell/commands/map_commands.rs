@@ -12,6 +12,8 @@ pub fn map_builtin_commands(command_map: &mut HashMap<String, CommandType>) {
     command_map.insert("type".to_string(), CommandType::Builtin);
     command_map.insert("pwd".to_string(), CommandType::Builtin);
     command_map.insert("cd".to_string(), CommandType::Builtin);
+    command_map.insert("export".to_string(), CommandType::Builtin);
+    command_map.insert("unset".to_string(), CommandType::Builtin);
 }
 
 pub fn map_external_commands(command_map: &mut HashMap<String, CommandType>) {
