@@ -1,22 +1,4 @@
 #V2
-echo "Testing basic pipe:"
-echo hello | cat
-echo "Testing pwd pipe:"
-pwd | cat
-echo "Testing multi-stage pipe:"
-echo test123 | cat | cat
-echo "Testing quoted pipe (should NOT pipe):"
-echo "hello | world"
-echo "Testing ls pipe:"
-ls | findstr Desktop
-echo "Done!"
-exit
-echo "Testing variable expansion:"
-echo $HOME
-echo "Path is: $PATH"
-echo 'Single quotes: $HOME'
-echo "Testing export:"
-export MY_VAR=hello
 echo $MY_VAR
 export ANOTHER=world
 echo "$MY_VAR $ANOTHER"
@@ -96,6 +78,24 @@ pwd
 echo test_*.txt
 exit
 cd C:/Users/hp/Desktop/rust-projects/oxide-shell
-ls test_*.txt
-cat test_file1.txt
+echo === Test 1: Basic * wildcard ===
+echo *.txt
+echo === Test 2: Single char ? wildcard ===
+echo file?.txt
+echo === Test 3: Character class [123] ===
+echo file[123].txt
+echo === Test 4: Character range [A-B] ===
+echo file[A-B].txt
+echo === Test 5: Double quotes prevent expansion ===
+echo "*.txt"
+echo === Test 6: Single quotes prevent expansion ===
+echo '*.txt'
+echo === Test 7: No matches keeps original ===
+echo *.nonexistent
+echo === Test 8: Path pattern ===
+echo src/*.rs
+echo === Test 9: cat with glob ===
+cat file1.txt file2.txt
+echo === Test 10: Mixed quoted and unquoted ===
+echo "literal:" *.txt
 exit

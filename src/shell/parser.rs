@@ -106,9 +106,7 @@ fn extract_and_expand_variable(
 /// Gets the value of an environment variable.
 /// Escapes backslashes so they survive the parsing stage.
 fn get_variable_value(name: &str, _last_exit_code: i32) -> String {
-    env::var(name)
-        .unwrap_or_default()
-        .replace('\\', "\\\\")
+    env::var(name).unwrap_or_default().replace('\\', "\\\\")
 }
 
 /// Expands glob patterns in tokens that weren't quoted.
