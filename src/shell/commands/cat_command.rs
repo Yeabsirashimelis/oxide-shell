@@ -68,11 +68,12 @@ pub fn run_cat_command_with_io(
     }
 }
 
-pub fn run_cat_command(args: Vec<String>) {
+pub fn run_cat_command(args: Vec<String>) -> i32 {
     let mut files: Vec<String> = args.into_iter().skip(1).collect();
 
     let mut output_path: Option<(String, bool)> = None;
     let mut error_path: Option<(String, bool)> = None;
+    let mut exit_code = 0;
 
     // Parse stdout redirection
     if let Some(pos) = files.iter().position(|a| a == ">>" || a == "1>>") {
@@ -111,6 +112,7 @@ pub fn run_cat_command(args: Vec<String>) {
             Ok(content) => total_content.push(content),
             Err(_) => {
                 let err_msg = format!("cat: {}: No such file or directory\n", clean_path);
+                exit_code = 1;
 
                 if let Some((path, append)) = &error_path {
                     if let Ok(mut file) = open_file(Path::new(path), *append) {
@@ -136,4 +138,6 @@ pub fn run_cat_command(args: Vec<String>) {
     } else if !joined.is_empty() {
         print!("{}", joined);
     }
+
+    exit_code
 }

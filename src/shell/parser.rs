@@ -3,7 +3,7 @@ use std::env;
 
 use glob::glob;
 
-use super::commands::Command;
+use super::commands::{ChainOperator, Command};
 use crate::shell::commands::{map_external_commands, CommandType};
 
 /// Expands environment variables in the input string.
@@ -254,6 +254,90 @@ pub fn split_pipeline(input: &str) -> Option<Vec<String>> {
     }
 }
 
+/// Splits input by chain operators (&&, ||, ;), respecting quotes and pipes.
+/// Returns None if no chain operators found, Some((commands, operators)) otherwise.
+/// Pipes have higher precedence than chain operators.
+pub fn split_chain(input: &str) -> Option<(Vec<String>, Vec<ChainOperator>)> {
+    let mut commands: Vec<String> = Vec::new();
+    let mut operators: Vec<ChainOperator> = Vec::new();
+    let mut current = String::new();
+    let mut in_single_quotes = false;
+    let mut in_double_quotes = false;
+
+    let mut chars = input.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' => {
+                current.push(c);
+                if let Some(next) = chars.next() {
+                    current.push(next);
+                }
+            }
+            '\'' if !in_double_quotes => {
+                in_single_quotes = !in_single_quotes;
+                current.push(c);
+            }
+            '"' if !in_single_quotes => {
+                in_double_quotes = !in_double_quotes;
+                current.push(c);
+            }
+            '&' if !in_single_quotes && !in_double_quotes => {
+                // Check for &&
+                if chars.peek() == Some(&'&') {
+                    chars.next(); // consume second &
+                    let trimmed = current.trim().to_string();
+                    if !trimmed.is_empty() {
+                        commands.push(trimmed);
+                        operators.push(ChainOperator::And);
+                    }
+                    current.clear();
+                } else {
+                    // Single & (background job - not implemented, treat as literal)
+                    current.push(c);
+                }
+            }
+            '|' if !in_single_quotes && !in_double_quotes => {
+                // Check for ||
+                if chars.peek() == Some(&'|') {
+                    chars.next(); // consume second |
+                    let trimmed = current.trim().to_string();
+                    if !trimmed.is_empty() {
+                        commands.push(trimmed);
+                        operators.push(ChainOperator::Or);
+                    }
+                    current.clear();
+                } else {
+                    // Single | is a pipe, keep it in current segment
+                    current.push(c);
+                }
+            }
+            ';' if !in_single_quotes && !in_double_quotes => {
+                let trimmed = current.trim().to_string();
+                if !trimmed.is_empty() {
+                    commands.push(trimmed);
+                    operators.push(ChainOperator::Sequence);
+                }
+                current.clear();
+            }
+            _ => current.push(c),
+        }
+    }
+
+    // Don't forget the last segment
+    let trimmed = current.trim().to_string();
+    if !trimmed.is_empty() {
+        commands.push(trimmed);
+    }
+
+    // Only return Some if we found chain operators
+    if operators.is_empty() {
+        None
+    } else {
+        Some((commands, operators))
+    }
+}
+
 pub fn parse_command(input: &str) -> Option<Command> {
     parse_command_with_exit_code(input, 0)
 }
@@ -266,7 +350,12 @@ pub fn parse_command_with_exit_code(input: &str, last_exit_code: i32) -> Option<
     // Expand environment variables first
     let expanded = expand_variables(input, last_exit_code);
 
-    // Check for pipeline first
+    // Check for command chaining first (&&, ||, ;)
+    if let Some((commands, operators)) = split_chain(&expanded) {
+        return Some(Command::Chain { commands, operators });
+    }
+
+    // Check for pipeline
     if let Some(segments) = split_pipeline(&expanded) {
         return Some(Command::Pipeline(segments));
     }

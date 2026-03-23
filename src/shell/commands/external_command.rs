@@ -37,10 +37,10 @@ pub fn run_external_command_with_io(
     command.stdin(stdin).stdout(stdout).spawn()
 }
 
-pub fn run_external_command(args: Vec<String>) {
+pub fn run_external_command(args: Vec<String>) -> i32 {
     if args.is_empty() {
         eprintln!("Error: no command provided");
-        return;
+        return 1;
     }
 
     let mut args_iter = args.into_iter();
@@ -105,13 +105,15 @@ pub fn run_external_command(args: Vec<String>) {
 
     // --- Spawn process ---
     match command.spawn() {
-        Ok(mut child) => {
-            if let Err(e) = child.wait() {
+        Ok(mut child) => match child.wait() {
+            Ok(status) => status.code().unwrap_or(1),
+            Err(e) => {
                 if stderr_path.is_none() {
                     eprintln!("Error waiting for process: {}", e);
                 }
+                1
             }
-        }
+        },
         Err(e) => {
             let msg = format!("Failed to execute '{}': {}\n", cmd_name, e);
             if let Some((ref path, append)) = stderr_path {
@@ -122,6 +124,7 @@ pub fn run_external_command(args: Vec<String>) {
             } else {
                 eprint!("{}", msg);
             }
+            127
         }
     }
 }

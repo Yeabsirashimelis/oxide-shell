@@ -1,6 +1,6 @@
 use std::{env, path::PathBuf};
 
-pub fn run_cd_command(path_str: &str) {
+pub fn run_cd_command(path_str: &str) -> i32 {
     let target_path = if path_str.trim().is_empty() || path_str == "~" {
         // Try HOME first (Linux)
         if let Ok(home) = env::var("HOME") {
@@ -27,5 +27,8 @@ pub fn run_cd_command(path_str: &str) {
 
     if let Err(_) = env::set_current_dir(&target_path) {
         eprintln!("cd: {}: No such file or directory", path_str);
+        1
+    } else {
+        0
     }
 }
