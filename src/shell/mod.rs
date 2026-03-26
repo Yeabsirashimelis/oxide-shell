@@ -14,7 +14,7 @@ mod commands;
 mod parser;
 
 use commands::{handle_command, Command};
-use parser::parse_command;
+use parser::{detect_heredoc, parse_command, remove_heredoc_from_command};
 
 use crate::shell::commands::map_external_commands;
 use crate::shell::commands::CommandType;
@@ -133,6 +133,52 @@ impl Shell {
                     }
 
                     rl.add_history_entry(trimmed).unwrap();
+
+                    // Check for here document
+                    if let Some((delimiter, is_quoted)) = detect_heredoc(trimmed) {
+                        let base_command = remove_heredoc_from_command(trimmed);
+                        let mut heredoc_content = String::new();
+
+                        // Read lines until we see the delimiter
+                        loop {
+                            match rl.readline("> ") {
+                                Ok(heredoc_line) => {
+                                    if heredoc_line.trim() == delimiter {
+                                        break;
+                                    }
+                                    // If not quoted, we could expand variables here
+                                    // For now, just collect the content
+                                    if !heredoc_content.is_empty() {
+                                        heredoc_content.push('\n');
+                                    }
+                                    if is_quoted {
+                                        heredoc_content.push_str(&heredoc_line);
+                                    } else {
+                                        // Expand variables in unquoted heredoc
+                                        let expanded = parser::expand_variables(&heredoc_line, 0);
+                                        heredoc_content.push_str(&expanded);
+                                    }
+                                }
+                                Err(ReadlineError::Interrupted) => {
+                                    eprintln!("^C");
+                                    break;
+                                }
+                                Err(ReadlineError::Eof) => {
+                                    eprintln!("warning: here-document delimited by end-of-file");
+                                    break;
+                                }
+                                Err(_) => break,
+                            }
+                        }
+
+                        // Execute the command with heredoc content
+                        let cmd = Command::HereDoc {
+                            command: base_command,
+                            content: heredoc_content,
+                        };
+                        handle_command(cmd);
+                        continue;
+                    }
 
                     match parse_command(trimmed) {
                         Some(Command::Exit(code)) => {

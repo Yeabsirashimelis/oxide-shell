@@ -57,6 +57,11 @@ pub enum Command {
     History,
     Alias(String),
     Unalias(String),
+    /// Here document: command with multiline input
+    HereDoc {
+        command: String,
+        content: String,
+    },
 }
 
 #[derive(Debug)]
@@ -132,6 +137,7 @@ pub fn handle_command_with_exit(cmd: Command) -> i32 {
             run_unalias_command(&args);
             0
         }
+        Command::HereDoc { command, content } => execute_heredoc(&command, &content),
         Command::Unknown(name) => {
             eprintln!("{}: command not found", name);
             127
@@ -232,6 +238,69 @@ fn run_unalias_command(args: &str) {
 pub fn get_alias(name: &str) -> Option<String> {
     let aliases = ALIASES.lock().unwrap();
     aliases.get(name).cloned()
+}
+
+/// Executes a command with here document content as stdin
+fn execute_heredoc(command: &str, content: &str) -> i32 {
+    use std::io::Write;
+    use std::process::{Command as ProcessCommand, Stdio};
+
+    let command = command.trim();
+    if command.is_empty() {
+        return 0;
+    }
+
+    // Parse the command to get the program and arguments
+    let parts: Vec<&str> = command.split_whitespace().collect();
+    if parts.is_empty() {
+        return 0;
+    }
+
+    let cmd_name = parts[0];
+
+    // Handle builtin commands that can accept stdin
+    match cmd_name {
+        "cat" => {
+            // Just print the heredoc content
+            print!("{}", content);
+            return 0;
+        }
+        _ => {}
+    }
+
+    // For external commands, spawn with piped stdin
+    let mut cmd = if cfg!(windows) {
+        let mut c = ProcessCommand::new("cmd");
+        c.args(["/C", command]);
+        c
+    } else {
+        let mut c = ProcessCommand::new("sh");
+        c.args(["-c", command]);
+        c
+    };
+
+    cmd.stdin(Stdio::piped());
+    cmd.stdout(Stdio::inherit());
+    cmd.stderr(Stdio::inherit());
+
+    match cmd.spawn() {
+        Ok(mut child) => {
+            // Write heredoc content to stdin
+            if let Some(mut stdin) = child.stdin.take() {
+                let _ = stdin.write_all(content.as_bytes());
+                let _ = stdin.flush();
+            }
+
+            match child.wait() {
+                Ok(status) => status.code().unwrap_or(1),
+                Err(_) => 1,
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to execute '{}': {}", cmd_name, e);
+            127
+        }
+    }
 }
 
 /// Handles a command (legacy wrapper, doesn't return exit code).

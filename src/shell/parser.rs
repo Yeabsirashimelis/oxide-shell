@@ -606,6 +606,122 @@ pub fn parse_command(input: &str) -> Option<Command> {
     parse_command_with_exit_code(input, 0)
 }
 
+/// Checks if input contains a here document (<<DELIMITER).
+/// Returns Some((delimiter, is_quoted)) if found, None otherwise.
+/// is_quoted indicates if the delimiter was quoted (no expansion).
+pub fn detect_heredoc(input: &str) -> Option<(String, bool)> {
+    let mut chars = input.chars().peekable();
+    let mut in_single_quotes = false;
+    let mut in_double_quotes = false;
+
+    while let Some(c) = chars.next() {
+        match c {
+            '\'' if !in_double_quotes => in_single_quotes = !in_single_quotes,
+            '"' if !in_single_quotes => in_double_quotes = !in_double_quotes,
+            '<' if !in_single_quotes && !in_double_quotes => {
+                if chars.peek() == Some(&'<') {
+                    chars.next(); // consume second <
+
+                    // Skip whitespace
+                    while chars.peek() == Some(&' ') || chars.peek() == Some(&'\t') {
+                        chars.next();
+                    }
+
+                    // Check if delimiter is quoted
+                    let mut delimiter = String::new();
+                    let mut is_quoted = false;
+                    let quote_char = chars.peek().copied();
+
+                    if quote_char == Some('\'') || quote_char == Some('"') {
+                        is_quoted = true;
+                        chars.next(); // consume opening quote
+
+                        // Read until closing quote
+                        while let Some(ch) = chars.next() {
+                            if ch == quote_char.unwrap() {
+                                break;
+                            }
+                            delimiter.push(ch);
+                        }
+                    } else {
+                        // Unquoted delimiter - read until whitespace or end
+                        while let Some(&ch) = chars.peek() {
+                            if ch.is_whitespace() {
+                                break;
+                            }
+                            delimiter.push(ch);
+                            chars.next();
+                        }
+                    }
+
+                    if !delimiter.is_empty() {
+                        return Some((delimiter, is_quoted));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    None
+}
+
+/// Removes the heredoc part (<<DELIMITER) from the command, leaving the base command.
+pub fn remove_heredoc_from_command(input: &str) -> String {
+    let mut result = String::new();
+    let mut chars = input.chars().peekable();
+    let mut in_single_quotes = false;
+    let mut in_double_quotes = false;
+
+    while let Some(c) = chars.next() {
+        match c {
+            '\'' if !in_double_quotes => {
+                in_single_quotes = !in_single_quotes;
+                result.push(c);
+            }
+            '"' if !in_single_quotes => {
+                in_double_quotes = !in_double_quotes;
+                result.push(c);
+            }
+            '<' if !in_single_quotes && !in_double_quotes => {
+                if chars.peek() == Some(&'<') {
+                    // Skip the heredoc part
+                    chars.next(); // consume second <
+
+                    // Skip whitespace
+                    while chars.peek() == Some(&' ') || chars.peek() == Some(&'\t') {
+                        chars.next();
+                    }
+
+                    // Skip the delimiter (quoted or unquoted)
+                    let quote_char = chars.peek().copied();
+                    if quote_char == Some('\'') || quote_char == Some('"') {
+                        chars.next(); // consume opening quote
+                        while let Some(ch) = chars.next() {
+                            if ch == quote_char.unwrap() {
+                                break;
+                            }
+                        }
+                    } else {
+                        // Skip unquoted delimiter
+                        while let Some(&ch) = chars.peek() {
+                            if ch.is_whitespace() {
+                                break;
+                            }
+                            chars.next();
+                        }
+                    }
+                } else {
+                    result.push(c);
+                }
+            }
+            _ => result.push(c),
+        }
+    }
+
+    result.trim().to_string()
+}
+
 /// Expands aliases in the input.
 /// Only the first word is checked for alias expansion.
 /// Alias expansion is recursive but with a depth limit to prevent infinite loops.
