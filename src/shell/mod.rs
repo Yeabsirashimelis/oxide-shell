@@ -14,7 +14,10 @@ mod commands;
 mod parser;
 
 use commands::{handle_command, Command};
-use parser::{detect_heredoc, parse_command, remove_heredoc_from_command};
+use parser::{
+    detect_heredoc, is_control_flow, is_control_flow_complete, parse_command,
+    remove_heredoc_from_command,
+};
 
 use crate::shell::commands::map_external_commands;
 use crate::shell::commands::CommandType;
@@ -133,6 +136,49 @@ impl Shell {
                     }
 
                     rl.add_history_entry(trimmed).unwrap();
+
+                    // Check for control flow (if, for, while, until, case)
+                    if is_control_flow(trimmed)
+                        && !is_control_flow_complete(trimmed)
+                    {
+                        let mut block = trimmed.to_string();
+
+                        // Collect lines until the block is complete
+                        loop {
+                            match rl.readline("> ") {
+                                Ok(cf_line) => {
+                                    block.push('\n');
+                                    block.push_str(&cf_line);
+
+                                    if is_control_flow_complete(&block) {
+                                        break;
+                                    }
+                                }
+                                Err(ReadlineError::Interrupted) => {
+                                    eprintln!("^C");
+                                    break;
+                                }
+                                Err(ReadlineError::Eof) => {
+                                    eprintln!("warning: unexpected end of file");
+                                    break;
+                                }
+                                Err(_) => break,
+                            }
+                        }
+
+                        // Parse and execute the collected block
+                        match parse_command(&block) {
+                            Some(Command::Exit(code)) => {
+                                rl.save_history("history.txt").unwrap();
+                                process::exit(code);
+                            }
+                            Some(cmd) => handle_command(cmd),
+                            None => {
+                                eprintln!("syntax error in control flow");
+                            }
+                        }
+                        continue;
+                    }
 
                     // Check for here document
                     if let Some((delimiter, is_quoted)) = detect_heredoc(trimmed) {

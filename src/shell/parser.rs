@@ -754,6 +754,558 @@ fn expand_alias(input: &str, depth: usize) -> String {
     }
 }
 
+/// Checks if input starts with a control flow keyword.
+pub fn is_control_flow(input: &str) -> bool {
+    let first_word = input.trim().split_whitespace().next().unwrap_or("");
+    matches!(first_word, "if" | "for" | "while" | "until" | "case")
+}
+
+/// Checks if a control flow block is complete (all opening keywords have matching closing keywords).
+pub fn is_control_flow_complete(input: &str) -> bool {
+    let mut if_depth = 0i32;
+    let mut for_while_depth = 0i32;
+    let mut case_depth = 0i32;
+    let mut in_single_quotes = false;
+    let mut in_double_quotes = false;
+
+    // Extract all words, respecting quotes
+    let mut words: Vec<String> = Vec::new();
+    let mut current = String::new();
+
+    for c in input.chars() {
+        match c {
+            '\'' if !in_double_quotes => {
+                in_single_quotes = !in_single_quotes;
+                current.push(c);
+            }
+            '"' if !in_single_quotes => {
+                in_double_quotes = !in_double_quotes;
+                current.push(c);
+            }
+            ' ' | '\t' | '\n' | ';' if !in_single_quotes && !in_double_quotes => {
+                if !current.is_empty() {
+                    words.push(current.clone());
+                    current.clear();
+                }
+            }
+            _ => current.push(c),
+        }
+    }
+    if !current.is_empty() {
+        words.push(current);
+    }
+
+    for word in &words {
+        match word.as_str() {
+            "if" => if_depth += 1,
+            "fi" => if_depth -= 1,
+            "for" | "while" | "until" => for_while_depth += 1,
+            "done" => for_while_depth -= 1,
+            "case" => case_depth += 1,
+            "esac" => case_depth -= 1,
+            _ => {}
+        }
+    }
+
+    if_depth == 0 && for_while_depth == 0 && case_depth == 0
+}
+
+/// Splits input into statements by ; and \n, respecting quotes.
+fn split_into_statements(input: &str) -> Vec<String> {
+    let mut statements = Vec::new();
+    let mut current = String::new();
+    let mut in_single_quotes = false;
+    let mut in_double_quotes = false;
+
+    let mut chars = input.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' => {
+                current.push(c);
+                if let Some(next) = chars.next() {
+                    current.push(next);
+                }
+            }
+            '\'' if !in_double_quotes => {
+                in_single_quotes = !in_single_quotes;
+                current.push(c);
+            }
+            '"' if !in_single_quotes => {
+                in_double_quotes = !in_double_quotes;
+                current.push(c);
+            }
+            ';' if !in_single_quotes && !in_double_quotes => {
+                // Check for ;; (case separator)
+                if chars.peek() == Some(&';') {
+                    chars.next();
+                    let trimmed = current.trim().to_string();
+                    if !trimmed.is_empty() {
+                        statements.push(trimmed);
+                    }
+                    statements.push(";;".to_string());
+                    current.clear();
+                } else {
+                    let trimmed = current.trim().to_string();
+                    if !trimmed.is_empty() {
+                        statements.push(trimmed);
+                    }
+                    current.clear();
+                }
+            }
+            '\n' if !in_single_quotes && !in_double_quotes => {
+                let trimmed = current.trim().to_string();
+                if !trimmed.is_empty() {
+                    statements.push(trimmed);
+                }
+                current.clear();
+            }
+            _ => current.push(c),
+        }
+    }
+
+    let trimmed = current.trim().to_string();
+    if !trimmed.is_empty() {
+        statements.push(trimmed);
+    }
+
+    statements
+}
+
+/// Parse a control flow construct from the input.
+pub fn parse_control_flow(input: &str) -> Option<Command> {
+    let trimmed = input.trim();
+    let first_word = trimmed.split_whitespace().next().unwrap_or("");
+
+    match first_word {
+        "for" => parse_for(trimmed),
+        "if" => parse_if(trimmed),
+        "while" => parse_while_until(trimmed, false),
+        "until" => parse_while_until(trimmed, true),
+        "case" => parse_case(trimmed),
+        _ => None,
+    }
+}
+
+/// Parse: for VAR in WORDS; do BODY; done
+fn parse_for(input: &str) -> Option<Command> {
+    let statements = split_into_statements(input);
+
+    // Flatten into a token stream of words and keywords
+    let mut all_words: Vec<String> = Vec::new();
+    for stmt in &statements {
+        for word in stmt.split_whitespace() {
+            all_words.push(word.to_string());
+        }
+    }
+
+    // Expected: for VAR in WORD... do COMMAND... done
+    if all_words.len() < 5 || all_words[0] != "for" {
+        return None;
+    }
+
+    let var = all_words[1].clone();
+
+    // Find "in"
+    if all_words.get(2).map(|s| s.as_str()) != Some("in") {
+        return None;
+    }
+
+    // Find "do"
+    let do_pos = all_words.iter().position(|w| w == "do")?;
+    // Expand the word list: variables, then braces, then globs
+    let raw_words: Vec<String> = all_words[3..do_pos].to_vec();
+    let expanded_words_str = expand_variables(&raw_words.join(" "), 0);
+    let word_tokens: Vec<(String, bool)> = expanded_words_str
+        .split_whitespace()
+        .map(|s| (s.to_string(), false))
+        .collect();
+    let words = expand_globs(word_tokens);
+
+    // Body is between do and done - reconstruct from statements
+    let body = extract_body_between_keywords(&statements, "do", "done");
+
+    Some(Command::For { var, words, body })
+}
+
+/// Parse: if COND; then BODY; [elif COND; then BODY;] [else BODY;] fi
+fn parse_if(input: &str) -> Option<Command> {
+    let statements = split_into_statements(input);
+    let mut branches: Vec<(String, Vec<String>)> = Vec::new();
+    let mut else_body: Option<Vec<String>> = None;
+
+    // Skip "if" keyword from first statement
+    if statements.is_empty() {
+        return None;
+    }
+
+    // First condition: everything after "if" until "then"
+    let mut state = "expect_condition"; // expect_condition, collect_body, expect_elif_else_fi
+    let mut current_condition = String::new();
+    let mut current_body: Vec<String> = Vec::new();
+    let mut in_else = false;
+
+    // Track nesting to handle inner if/for/while
+    let mut nest_depth = 0;
+
+    for stmt in &statements {
+        let trimmed = stmt.trim();
+        let first_word = trimmed.split_whitespace().next().unwrap_or("");
+
+        match state {
+            "expect_condition" => {
+                if first_word == "if" || first_word == "elif" {
+                    // Extract condition: everything after if/elif, removing trailing "then" if present
+                    let rest = trimmed
+                        .strip_prefix("if")
+                        .or_else(|| trimmed.strip_prefix("elif"))
+                        .unwrap_or("")
+                        .trim();
+
+                    if rest.ends_with("then") {
+                        current_condition =
+                            rest[..rest.len() - 4].trim().to_string();
+                        state = "collect_body";
+                    } else {
+                        current_condition = rest.to_string();
+                        state = "expect_then";
+                    }
+                }
+            }
+            "expect_then" => {
+                if trimmed == "then" {
+                    state = "collect_body";
+                } else if first_word == "then" {
+                    // "then BODY" on the same line
+                    let rest = trimmed.strip_prefix("then").unwrap_or("").trim();
+                    if !rest.is_empty() {
+                        // Check if rest starts with nested control flow
+                        let rest_first = rest.split_whitespace().next().unwrap_or("");
+                        if matches!(rest_first, "if" | "for" | "while" | "until" | "case") {
+                            nest_depth += 1;
+                        }
+                        current_body.push(rest.to_string());
+                    }
+                    state = "collect_body";
+                } else {
+                    // Condition continues
+                    if !current_condition.is_empty() {
+                        current_condition.push(' ');
+                    }
+                    current_condition.push_str(trimmed);
+                    if trimmed.ends_with("then") {
+                        current_condition = current_condition
+                            [..current_condition.len() - 4]
+                            .trim()
+                            .to_string();
+                        state = "collect_body";
+                    }
+                }
+            }
+            "collect_body" => {
+                // Track nesting
+                if matches!(first_word, "if" | "for" | "while" | "until" | "case") {
+                    nest_depth += 1;
+                }
+                if matches!(first_word, "fi" | "done" | "esac") && nest_depth > 0 {
+                    nest_depth -= 1;
+                    // Append to last body entry (part of nested construct)
+                    if let Some(last) = current_body.last_mut() {
+                        last.push_str("; ");
+                        last.push_str(trimmed);
+                    } else {
+                        current_body.push(trimmed.to_string());
+                    }
+                    continue;
+                }
+
+                if nest_depth > 0 {
+                    // Append to last body entry (part of nested construct)
+                    if let Some(last) = current_body.last_mut() {
+                        last.push_str("; ");
+                        last.push_str(trimmed);
+                    } else {
+                        current_body.push(trimmed.to_string());
+                    }
+                    continue;
+                }
+
+                if first_word == "elif" {
+                    // Save current branch
+                    if !in_else {
+                        branches.push((current_condition.clone(), current_body.clone()));
+                    }
+                    current_body.clear();
+                    current_condition.clear();
+
+                    let rest = trimmed.strip_prefix("elif").unwrap_or("").trim();
+                    if rest.ends_with("then") {
+                        current_condition =
+                            rest[..rest.len() - 4].trim().to_string();
+                        state = "collect_body";
+                    } else {
+                        current_condition = rest.to_string();
+                        state = "expect_then";
+                    }
+                } else if first_word == "else" {
+                    // Save current branch
+                    branches.push((current_condition.clone(), current_body.clone()));
+                    current_body.clear();
+                    in_else = true;
+                    // If there's content after "else" on the same line
+                    let rest = trimmed.strip_prefix("else").unwrap_or("").trim();
+                    if !rest.is_empty() {
+                        current_body.push(rest.to_string());
+                    }
+                } else if first_word == "fi" {
+                    if in_else {
+                        else_body = Some(current_body.clone());
+                    } else {
+                        branches.push((current_condition.clone(), current_body.clone()));
+                    }
+                    break;
+                } else {
+                    current_body.push(trimmed.to_string());
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if branches.is_empty() {
+        return None;
+    }
+
+    Some(Command::If {
+        branches,
+        else_body,
+    })
+}
+
+/// Parse: while/until COND; do BODY; done
+fn parse_while_until(input: &str, is_until: bool) -> Option<Command> {
+    let statements = split_into_statements(input);
+    let keyword = if is_until { "until" } else { "while" };
+
+    let mut condition = String::new();
+    let mut body: Vec<String> = Vec::new();
+    let mut state = "expect_condition";
+    let mut nest_depth = 0;
+
+    for stmt in &statements {
+        let trimmed = stmt.trim();
+        let first_word = trimmed.split_whitespace().next().unwrap_or("");
+
+        match state {
+            "expect_condition" => {
+                let rest = trimmed.strip_prefix(keyword).unwrap_or(trimmed).trim();
+                if rest.ends_with("do") {
+                    condition = rest[..rest.len() - 2].trim().to_string();
+                    state = "collect_body";
+                } else {
+                    condition = rest.to_string();
+                    state = "expect_do";
+                }
+            }
+            "expect_do" => {
+                if trimmed == "do" {
+                    state = "collect_body";
+                } else {
+                    if !condition.is_empty() {
+                        condition.push(' ');
+                    }
+                    condition.push_str(trimmed);
+                }
+            }
+            "collect_body" => {
+                if matches!(first_word, "if" | "for" | "while" | "until" | "case") {
+                    nest_depth += 1;
+                }
+                if matches!(first_word, "fi" | "done" | "esac") && nest_depth > 0 {
+                    nest_depth -= 1;
+                    body.push(trimmed.to_string());
+                    continue;
+                }
+
+                if first_word == "done" && nest_depth == 0 {
+                    break;
+                } else {
+                    body.push(trimmed.to_string());
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if condition.is_empty() {
+        return None;
+    }
+
+    Some(Command::WhileUntil {
+        is_until,
+        condition,
+        body,
+    })
+}
+
+/// Parse: case WORD in PATTERN) BODY;; ... esac
+fn parse_case(input: &str) -> Option<Command> {
+    let statements = split_into_statements(input);
+    let mut word = String::new();
+    let mut arms: Vec<(Vec<String>, Vec<String>)> = Vec::new();
+    let mut state = "expect_word";
+    let mut current_patterns: Vec<String> = Vec::new();
+    let mut current_body: Vec<String> = Vec::new();
+
+    for stmt in &statements {
+        let trimmed = stmt.trim();
+
+        match state {
+            "expect_word" => {
+                // case WORD in [PATTERN)...]
+                let rest = trimmed.strip_prefix("case").unwrap_or(trimmed).trim();
+
+                // Find " in " to separate word from potential patterns
+                if let Some(in_pos) = find_keyword_in(rest) {
+                    word = rest[..in_pos].trim().to_string();
+                    let after_in = rest[in_pos + 3..].trim(); // skip " in "
+
+                    if after_in.is_empty() {
+                        state = "expect_pattern";
+                    } else {
+                        // Pattern follows on same line
+                        state = "expect_pattern";
+                        // Process the pattern part
+                        if after_in.contains(')') {
+                            let paren_pos = after_in.find(')').unwrap();
+                            let pattern_str = &after_in[..paren_pos];
+                            current_patterns = pattern_str.split('|').map(|s| s.trim().to_string()).collect();
+                            let body_rest = after_in[paren_pos + 1..].trim();
+                            if !body_rest.is_empty() {
+                                current_body.push(body_rest.to_string());
+                            }
+                            state = "collect_body";
+                        }
+                    }
+                } else {
+                    word = rest.to_string();
+                    state = "expect_in";
+                }
+            }
+            "expect_in" => {
+                if trimmed == "in" {
+                    state = "expect_pattern";
+                }
+            }
+            "expect_pattern" => {
+                if trimmed == "esac" {
+                    break;
+                }
+                // Pattern ends with )
+                if trimmed.ends_with(')') {
+                    let pattern_str = &trimmed[..trimmed.len() - 1];
+                    current_patterns = pattern_str.split('|').map(|s| s.trim().to_string()).collect();
+                    state = "collect_body";
+                } else if trimmed.contains(')') {
+                    // Pattern and body on same line: pattern) body
+                    let paren_pos = trimmed.find(')').unwrap();
+                    let pattern_str = &trimmed[..paren_pos];
+                    current_patterns = pattern_str.split('|').map(|s| s.trim().to_string()).collect();
+                    let rest = trimmed[paren_pos + 1..].trim();
+                    if !rest.is_empty() {
+                        current_body.push(rest.to_string());
+                    }
+                    state = "collect_body";
+                }
+            }
+            "collect_body" => {
+                if trimmed == ";;" {
+                    arms.push((current_patterns.clone(), current_body.clone()));
+                    current_patterns.clear();
+                    current_body.clear();
+                    state = "expect_pattern";
+                } else if trimmed == "esac" {
+                    // Push final arm if there's content
+                    if !current_patterns.is_empty() {
+                        arms.push((current_patterns.clone(), current_body.clone()));
+                    }
+                    break;
+                } else {
+                    current_body.push(trimmed.to_string());
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if word.is_empty() {
+        return None;
+    }
+
+    Some(Command::Case { word, arms })
+}
+
+/// Find the position of the " in " keyword in a case statement.
+/// Returns the byte position of " in " or None if not found.
+fn find_keyword_in(input: &str) -> Option<usize> {
+    // Look for " in " as a word boundary
+    let mut search_from = 0;
+    while let Some(pos) = input[search_from..].find(" in") {
+        let abs_pos = search_from + pos;
+        let after = abs_pos + 3;
+        // Check it's followed by whitespace or end of string
+        if after >= input.len() || input.as_bytes()[after] == b' ' || input.as_bytes()[after] == b'\t' {
+            return Some(abs_pos);
+        }
+        search_from = abs_pos + 1;
+    }
+    None
+}
+
+/// Extract body commands between two keywords from a list of statements.
+fn extract_body_between_keywords(
+    statements: &[String],
+    start_keyword: &str,
+    end_keyword: &str,
+) -> Vec<String> {
+    let mut body = Vec::new();
+    let mut found_start = false;
+    let mut nest_depth = 0;
+
+    for stmt in statements {
+        let trimmed = stmt.trim();
+        let first_word = trimmed.split_whitespace().next().unwrap_or("");
+
+        if !found_start {
+            if trimmed == start_keyword || first_word == start_keyword {
+                found_start = true;
+                // If there's content after "do" on the same line
+                let rest = trimmed.strip_prefix(start_keyword).unwrap_or("").trim();
+                if !rest.is_empty() {
+                    body.push(rest.to_string());
+                }
+                continue;
+            }
+            continue;
+        }
+
+        // Track nesting
+        if matches!(first_word, "if" | "for" | "while" | "until" | "case") {
+            nest_depth += 1;
+        }
+        if matches!(first_word, "fi" | "done" | "esac") {
+            if nest_depth > 0 {
+                nest_depth -= 1;
+            } else if first_word == end_keyword {
+                break;
+            }
+        }
+
+        body.push(trimmed.to_string());
+    }
+
+    body
+}
+
 pub fn parse_command_with_exit_code(input: &str, last_exit_code: i32) -> Option<Command> {
     if input.trim().is_empty() {
         return None;
@@ -762,10 +1314,18 @@ pub fn parse_command_with_exit_code(input: &str, last_exit_code: i32) -> Option<
     // Expand aliases first (before variable expansion)
     let aliased = expand_alias(input, 0);
 
+    // Check for control flow BEFORE variable expansion
+    // (body commands like $i must be preserved as templates)
+    if is_control_flow(&aliased) {
+        if let Some(cf) = parse_control_flow(&aliased) {
+            return Some(cf);
+        }
+    }
+
     // Expand environment variables
     let expanded = expand_variables(&aliased, last_exit_code);
 
-    // Check for command chaining first (&&, ||, ;)
+    // Check for command chaining (&&, ||, ;)
     if let Some((commands, operators)) = split_chain(&expanded) {
         return Some(Command::Chain {
             commands,

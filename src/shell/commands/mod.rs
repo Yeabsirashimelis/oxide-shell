@@ -1,6 +1,7 @@
 mod cat_command;
 mod cd_command;
 mod chain;
+mod control_flow;
 mod echo_command;
 mod export_command;
 mod external_command;
@@ -22,6 +23,7 @@ static ALIASES: Lazy<Mutex<HashMap<String, String>>> = Lazy::new(|| Mutex::new(H
 pub use crate::shell::commands::map_commands::{map_builtin_commands, map_external_commands};
 use crate::shell::commands::{
     cat_command::run_cat_command, cd_command::run_cd_command, chain::execute_chain,
+    control_flow::{execute_case, execute_for, execute_if, execute_while_until},
     echo_command::run_echo_command, export_command::run_export_command,
     external_command::run_external_command, ls_command::run_ls_command, pipeline::execute_pipeline,
     pwd_command::run_pwd_command, type_command::run_type_command, unset_command::run_unset_command,
@@ -61,6 +63,30 @@ pub enum Command {
     HereDoc {
         command: String,
         content: String,
+    },
+    /// if/elif/else/fi
+    If {
+        /// Vec of (condition, body_commands)
+        branches: Vec<(String, Vec<String>)>,
+        /// Optional else body
+        else_body: Option<Vec<String>>,
+    },
+    /// for var in words; do body; done
+    For {
+        var: String,
+        words: Vec<String>,
+        body: Vec<String>,
+    },
+    /// while/until condition; do body; done
+    WhileUntil {
+        is_until: bool,
+        condition: String,
+        body: Vec<String>,
+    },
+    /// case word in pattern) body;; esac
+    Case {
+        word: String,
+        arms: Vec<(Vec<String>, Vec<String>)>,
     },
 }
 
@@ -138,6 +164,17 @@ pub fn handle_command_with_exit(cmd: Command) -> i32 {
             0
         }
         Command::HereDoc { command, content } => execute_heredoc(&command, &content),
+        Command::If {
+            branches,
+            else_body,
+        } => execute_if(branches, else_body),
+        Command::For { var, words, body } => execute_for(&var, words, body),
+        Command::WhileUntil {
+            is_until,
+            condition,
+            body,
+        } => execute_while_until(is_until, &condition, body),
+        Command::Case { word, arms } => execute_case(&word, arms),
         Command::Unknown(name) => {
             eprintln!("{}: command not found", name);
             127
