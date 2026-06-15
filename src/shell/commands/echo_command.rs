@@ -60,16 +60,22 @@ pub fn run_echo_command(raw: String) {
     let message = echo_parts.join(" ");
 
     if let Some((path, append)) = stdout_path {
-        let mut file = if append {
+        let file_result = if append {
             OpenOptions::new()
                 .create(true)
                 .append(true)
                 .open(path)
-                .unwrap()
         } else {
-            File::create(path).unwrap()
+            File::create(path)
         };
-        writeln!(file, "{}", message).unwrap();
+        match file_result {
+            Ok(mut file) => {
+                let _ = writeln!(file, "{}", message);
+            }
+            Err(e) => {
+                eprintln!("echo: {}: {}", path, e);
+            }
+        }
     } else {
         println!("{}", message);
     }

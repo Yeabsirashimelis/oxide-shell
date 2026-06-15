@@ -88,6 +88,8 @@ pub enum Command {
         word: String,
         arms: Vec<(Vec<String>, Vec<String>)>,
     },
+    /// No-op command (e.g., bare variable assignment already handled)
+    Noop,
 }
 
 #[derive(Debug)]
@@ -175,6 +177,7 @@ pub fn handle_command_with_exit(cmd: Command) -> i32 {
             body,
         } => execute_while_until(is_until, &condition, body),
         Command::Case { word, arms } => execute_case(&word, arms),
+        Command::Noop => 0,
         Command::Unknown(name) => {
             eprintln!("{}: command not found", name);
             127
@@ -298,8 +301,8 @@ fn execute_heredoc(command: &str, content: &str) -> i32 {
     // Handle builtin commands that can accept stdin
     match cmd_name {
         "cat" => {
-            // Just print the heredoc content
-            print!("{}", content);
+            // Print the heredoc content with trailing newline
+            println!("{}", content);
             return 0;
         }
         _ => {}

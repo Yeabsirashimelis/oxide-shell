@@ -1,7 +1,7 @@
 use std::env;
 
 use super::handle_command_with_exit;
-use crate::shell::parser::parse_command_with_exit_code;
+use crate::shell::parser::{expand_variables, parse_command_with_exit_code};
 
 /// Execute a single command string and return its exit code.
 fn run_command(cmd_str: &str, last_exit_code: i32) -> i32 {
@@ -97,10 +97,12 @@ pub fn execute_while_until(
 /// Executes case word in pattern) body;; esac
 pub fn execute_case(word: &str, arms: Vec<(Vec<String>, Vec<String>)>) -> i32 {
     let last_exit_code = 0;
+    // Expand variables in the word (e.g., $val -> its value)
+    let expanded_word = expand_variables(word, last_exit_code);
 
     for (patterns, body) in &arms {
         for pattern in patterns {
-            if matches_pattern(word, pattern) {
+            if matches_pattern(&expanded_word, pattern) {
                 return run_body(body, last_exit_code);
             }
         }

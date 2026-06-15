@@ -43,12 +43,20 @@ pub fn expand_variables(input: &str, last_exit_code: i32) -> String {
                 result.push(c);
             }
             '$' if !in_single_quotes => {
-                // Check for command substitution $(...)
+                // Check for arithmetic expansion $((...)) or command substitution $(...)
                 if chars.peek() == Some(&'(') {
-                    chars.next(); // consume '('
-                    let cmd_output =
-                        extract_and_run_command_substitution(&mut chars, last_exit_code);
-                    result.push_str(&cmd_output);
+                    chars.next(); // consume first '('
+                    if chars.peek() == Some(&'(') {
+                        // Arithmetic expansion $((...))
+                        chars.next(); // consume second '('
+                        let arith_result =
+                            extract_and_eval_arithmetic(&mut chars, last_exit_code);
+                        result.push_str(&arith_result);
+                    } else {
+                        let cmd_output =
+                            extract_and_run_command_substitution(&mut chars, last_exit_code);
+                        result.push_str(&cmd_output);
+                    }
                 } else {
                     // Variable expansion
                     let var_value = extract_and_expand_variable(&mut chars, last_exit_code);
@@ -93,6 +101,140 @@ fn extract_and_run_command_substitution(
     }
 
     execute_command_substitution(&command, last_exit_code)
+}
+
+/// Extracts arithmetic expression from $((...)) and evaluates it.
+fn extract_and_eval_arithmetic(
+    chars: &mut std::iter::Peekable<std::str::Chars>,
+    last_exit_code: i32,
+) -> String {
+    let mut expr = String::new();
+    let mut paren_depth = 0; // extra parens inside the expression
+
+    while let Some(c) = chars.next() {
+        match c {
+            '(' => {
+                paren_depth += 1;
+                expr.push(c);
+            }
+            ')' => {
+                if paren_depth > 0 {
+                    paren_depth -= 1;
+                    expr.push(c);
+                } else {
+                    // This is one of the closing )) — check for the second
+                    if chars.peek() == Some(&')') {
+                        chars.next(); // consume second ')'
+                    }
+                    break;
+                }
+            }
+            _ => expr.push(c),
+        }
+    }
+
+    // Expand variables in the expression
+    let expanded = expand_variables(&expr, last_exit_code);
+    eval_arithmetic_expr(&expanded)
+}
+
+/// Evaluates a simple arithmetic expression.
+/// Supports: +, -, *, /, % with integer arithmetic.
+fn eval_arithmetic_expr(expr: &str) -> String {
+    let expr = expr.trim();
+
+    // Try to handle simple binary operations
+    // We parse with operator precedence: first handle +/-, then *//%
+    match eval_add_sub(expr) {
+        Some(val) => val.to_string(),
+        None => String::new(),
+    }
+}
+
+fn eval_add_sub(expr: &str) -> Option<i64> {
+    let expr = expr.trim();
+    // Find the last + or - that's not inside parentheses
+    let mut depth = 0;
+    let mut last_op: Option<(usize, char)> = None;
+    for (i, c) in expr.char_indices() {
+        match c {
+            '(' => depth += 1,
+            ')' => depth -= 1,
+            '+' | '-' if depth == 0 && i > 0 => {
+                last_op = Some((i, c));
+            }
+            _ => {}
+        }
+    }
+    if let Some((pos, op)) = last_op {
+        let left = eval_add_sub(&expr[..pos])?;
+        let right = eval_mul_div(&expr[pos + 1..])?;
+        return Some(if op == '+' { left + right } else { left - right });
+    }
+    eval_mul_div(expr)
+}
+
+fn eval_mul_div(expr: &str) -> Option<i64> {
+    let expr = expr.trim();
+    let mut depth = 0;
+    let mut last_op: Option<(usize, char)> = None;
+    for (i, c) in expr.char_indices() {
+        match c {
+            '(' => depth += 1,
+            ')' => depth -= 1,
+            '*' | '/' | '%' if depth == 0 && i > 0 => {
+                last_op = Some((i, c));
+            }
+            _ => {}
+        }
+    }
+    if let Some((pos, op)) = last_op {
+        let left = eval_mul_div(&expr[..pos])?;
+        let right = eval_atom(expr[pos + 1..].trim())?;
+        return match op {
+            '*' => Some(left * right),
+            '/' => {
+                if right == 0 { None } else { Some(left / right) }
+            }
+            '%' => {
+                if right == 0 { None } else { Some(left % right) }
+            }
+            _ => None,
+        };
+    }
+    eval_atom(expr)
+}
+
+fn eval_atom(expr: &str) -> Option<i64> {
+    let expr = expr.trim();
+    if expr.is_empty() {
+        return None;
+    }
+    // Handle parenthesized expression
+    if expr.starts_with('(') && expr.ends_with(')') {
+        return eval_add_sub(&expr[1..expr.len() - 1]);
+    }
+    // Handle unary minus
+    if expr.starts_with('-') {
+        return eval_atom(&expr[1..]).map(|v| -v);
+    }
+    // Handle unary plus
+    if expr.starts_with('+') {
+        return eval_atom(&expr[1..]);
+    }
+    // Try parsing as integer
+    if let Ok(val) = expr.parse::<i64>() {
+        return Some(val);
+    }
+    // Try as a variable name (bash allows bare names in arithmetic)
+    if expr
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '_')
+    {
+        let val = env::var(expr).unwrap_or_default();
+        return val.parse::<i64>().ok().or(Some(0));
+    }
+    None
 }
 
 /// Extracts command from `...` and executes it, returning the output.
@@ -1427,6 +1569,22 @@ pub fn parse_single_command(input: &str) -> Option<Command> {
             if external_commands.contains_key(&cmd_with_exe) {
                 cmd_to_check = cmd_with_exe.clone();
             }
+        }
+    }
+
+    // Check for bare variable assignment: VAR=value
+    if let Some(eq_pos) = cmd.find('=') {
+        let name = &cmd[..eq_pos];
+        if !name.is_empty()
+            && name
+                .chars()
+                .next()
+                .map_or(false, |c| c.is_alphabetic() || c == '_')
+            && name.chars().all(|c| c.is_alphanumeric() || c == '_')
+        {
+            let value = &cmd[eq_pos + 1..];
+            env::set_var(name, value);
+            return Some(Command::Noop);
         }
     }
 
