@@ -1,374 +1,247 @@
-# 🐚 Oxide Shell
+# Oxide Shell
 
 [![Rust](https://img.shields.io/badge/rust-1.80+-orange.svg)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/Yeabsirashimelis/oxide-shell)](https://github.com/Yeabsirashimelis/oxide-shell/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/Yeabsirashimelis/oxide-shell/total)](https://github.com/Yeabsirashimelis/oxide-shell/releases)
-[![CodeCrafters](https://img.shields.io/badge/CodeCrafters-Shell-green.svg)](https://codecrafters.io)
 
-A fully-featured, POSIX-compliant shell implementation **built with Rust** by **Yeabsira Shimelis**. 
+A shell built from scratch in Rust. Started as a [CodeCrafters challenge](https://app.codecrafters.io/courses/shell/overview), grew into something with real features — pipes, control flow, variable expansion, the works.
 
-**Oxide Shell** is a modern, fast, and interactive command-line shell that brings the power of Rust to your terminal. Experience blazing-fast performance, memory safety, and a clean command-line interface.
-
-Created as part of the [CodeCrafters "Build Your Own Shell" Challenge](https://app.codecrafters.io/courses/shell/overview), this project demonstrates advanced systems programming concepts including command parsing, process management, I/O redirection, and more.
-
----
-
-## 🚀 Quick Install
-
-**Windows PowerShell:**
-```powershell
-Invoke-WebRequest -Uri "https://github.com/Yeabsirashimelis/oxide-shell/releases/latest/download/oxide-shell.exe" -OutFile "$env:USERPROFILE\Desktop\oxide-shell.exe"; Start-Process "$env:USERPROFILE\Desktop\oxide-shell.exe"
+```
+  ___       _     _        ____  _          _ _
+ / _ \__  _(_) __| | ___  / ___|| |__   ___| | |
+| | | \ \/ / |/ _` |/ _ \ \___ \| '_ \ / _ \ | |
+| |_| |>  <| | (_| |  __/  ___) | | | |  __/ | |
+ \___//_/\_\_|\__,_|\___| |____/|_| |_|\___|_|_|
+                                        v0.2.0
+                              by Yeabsira Shimelis
 ```
 
-**Manual Download:** [Get oxide-shell.exe](https://github.com/Yeabsirashimelis/oxide-shell/releases/latest/download/oxide-shell.exe)
+## Get It
 
-## ✨ Features
+**Download the binary:** [oxide-shell.exe](https://github.com/Yeabsirashimelis/oxide-shell/releases/latest/download/oxide-shell.exe)
 
-### Core Functionality
-- 🔄 **REPL (Read-Eval-Print Loop)** with interactive prompt
-- 📝 **Command History** with persistent storage
-- ⌨️ **Tab Completion** for commands (builtins and PATH executables)
-- 🎯 **Quote Parsing** with support for single and double quotes
-- 🔀 **I/O Redirection** for stdout and stderr
-- 🌐 **Cross-Platform** support (Windows, Linux, macOS)
+Or build from source:
 
-### Builtin Commands
-
-| Command | Description | Examples |
-|---------|-------------|----------|
-| `echo` | Print text to stdout | `echo Hello World`<br>`echo "Quoted text"` |
-| `exit` | Exit shell with optional code | `exit`<br>`exit 42` |
-| `type` | Show command type | `type echo`<br>`type ls` |
-| `pwd` | Print working directory | `pwd` |
-| `cd` | Change directory | `cd /path/to/dir`<br>`cd ~` |
-| `cat` | Concatenate and display files | `cat file.txt`<br>`cat file1.txt file2.txt` |
-| `ls` | List directory contents | `ls`<br>`ls /path/to/dir` |
-
-### Advanced Features
-
-#### I/O Redirection
 ```bash
-# Redirect stdout (overwrite)
-echo "Hello" > output.txt
-
-# Redirect stdout (append)
-echo "World" >> output.txt
-
-# Redirect stderr
-cat nonexistent.txt 2> errors.txt
-
-# Redirect stderr (append)
-cat another.txt 2>> errors.txt
+git clone https://github.com/Yeabsirashimelis/oxide-shell.git
+cd oxide-shell
+cargo build --release
+./target/release/oxide-shell
 ```
 
-#### Quote Handling
-```bash
-# Single quotes (literal)
-echo 'Hello $USER'  # Output: Hello $USER
+## What It Can Do
 
-# Double quotes (with escape sequences)
-echo "Hello\nWorld"  # Supports \n, \t, \\, \", etc.
+### Builtins
+
+| Command | What it does |
+|---------|-------------|
+| `echo` | Print text, supports redirection (`>`, `>>`, `2>`) |
+| `cd` | Change directory (`cd ~`, `cd ..`, `cd /path`) |
+| `pwd` | Print working directory |
+| `ls` | List directory contents |
+| `cat` | Read files, supports input redirection (`<`) |
+| `export` | Set environment variables |
+| `unset` | Remove environment variables |
+| `alias` / `unalias` | Create and remove command aliases |
+| `history` | Show command history |
+| `clear` | Clear the screen |
+| `type` | Show whether a command is builtin or external |
+| `exit` | Quit the shell |
+
+### Pipes and Chaining
+
+```bash
+echo hello world | grep hello
+cat file.txt | sort | uniq
+
+# Run second command only if first succeeds
+mkdir newdir && cd newdir
+
+# Run second command only if first fails
+cat config.txt 2>/dev/null || echo "no config found"
+
+# Run both regardless
+echo starting ; ls ; echo done
 ```
 
-#### External Command Execution
+### Variables
+
 ```bash
-# Run any executable from PATH
-ls -la
-git status
-python script.py
+# Set and use variables
+name=world
+echo $name          # world
+echo ${name}        # world
+
+# Export for child processes
+export PATH="/my/bin:$PATH"
+
+# Special variables
+echo $?             # last exit code
+echo $$             # shell process ID
 ```
 
-#### Directory Navigation
+### Arithmetic
+
 ```bash
-# Change to home directory
+echo $((2 + 3))         # 5
+echo $((10 * 4 - 3))    # 37
+echo $((10 / 3))        # 3
+echo $((10 % 3))        # 1
+
+x=5
+echo $((x + 1))         # 6
+```
+
+### Command Substitution
+
+```bash
+echo "I'm in $(pwd)"
+files=$(ls)
+today=`date`
+```
+
+### Globbing and Expansion
+
+```bash
+# Wildcards
+ls *.txt
+cat src/*.rs
+
+# Brace expansion
+echo {a,b,c}             # a b c
+echo file{1..5}.txt      # file1.txt file2.txt ... file5.txt
+touch test_{a,b,c}.log
+
+# Tilde
 cd ~
-
-# Relative paths
-cd ../parent/sibling
-
-# Absolute paths
-cd /usr/local/bin
+ls ~/Documents
 ```
 
-## 🚀 Getting Started
-
-### Prerequisites
-
-- Rust 1.80 or higher
-- Cargo (comes with Rust)
-
-### Installation
-
-#### Option 1: Download Binary (Easiest)
-
-**Windows:**
-1. Download the latest [oxide-shell.exe](https://github.com/Yeabsirashimelis/oxide-shell/releases/latest/download/oxide-shell.exe)
-2. Double-click to run!
-
-**Or use this PowerShell one-liner (downloads to Desktop and opens automatically):**
-```powershell
-Invoke-WebRequest -Uri "https://github.com/Yeabsirashimelis/oxide-shell/releases/latest/download/oxide-shell.exe" -OutFile "$env:USERPROFILE\Desktop\oxide-shell.exe"; Start-Process "$env:USERPROFILE\Desktop\oxide-shell.exe"
-```
-
-**Linux/macOS:**
-1. Download the binary from [releases](https://github.com/Yeabsirashimelis/oxide-shell/releases)
-2. Make it executable: `chmod +x oxide-shell`
-3. Run: `./oxide-shell`
-
-#### Option 2: Build from Source
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/Yeabsirashimelis/oxide-shell.git
-   cd oxide-shell
-   ```
-
-2. **Build the project**
-   ```bash
-   cargo build --release
-   ```
-
-3. **Run the shell**
-   ```bash
-   cargo run --release
-   ```
-   
-   Or directly run the binary:
-   ```bash
-   ./target/release/oxide-shell
-   ```
-
-#### Option 3: Install with Cargo (Coming Soon)
+### Control Flow
 
 ```bash
-cargo install oxide-shell
+# if / elif / else
+if [ -f config.txt ]; then
+    echo "config exists"
+elif [ -f config.default ]; then
+    echo "using default"
+else
+    echo "no config"
+fi
+
+# for loops
+for f in *.txt; do
+    echo "found: $f"
+done
+
+for i in {1..5}; do
+    echo $i
+done
+
+# while loops
+x=0
+while [ $x -lt 5 ]; do
+    echo $x
+    x=$((x + 1))
+done
+
+# case
+case $1 in
+    start)  echo "starting" ;;
+    stop)   echo "stopping" ;;
+    *)      echo "unknown: $1" ;;
+esac
 ```
 
-### Quick Start
+### Here Documents
 
 ```bash
-# Start the shell
-$ oxide-shell
-
-╔════════════════════════════════════════════╗
-║  CREATED BY YEABSIRA SHIMELIS             ║
-╔════════════════════════════════════════════╗
-
-# You'll see the prompt (starts in your home directory)
-$ pwd
-C:\Users\YourName  # Windows
-/home/user         # Linux/macOS
-
-$ echo "Hello, Oxide Shell!"
-Hello, Oxide Shell!
-
-$ type echo
-echo is a shell builtin
-
-$ ls
-file1.txt  file2.txt  Documents  Downloads
-
-$ cd Documents
-
-$ exit
+cat <<EOF
+Hello $name,
+This is a multi-line message.
+Today is $(date).
+EOF
 ```
 
-## 📁 Project Structure
+### I/O Redirection
+
+```bash
+echo "hello" > output.txt       # overwrite
+echo "world" >> output.txt      # append
+cat < input.txt                 # read from file
+cmd 2> errors.log               # redirect stderr
+cmd 2>> errors.log              # append stderr
+```
+
+### Aliases
+
+```bash
+alias ll="ls -la"
+alias gs="git status"
+ll                    # runs ls -la
+unalias ll
+```
+
+### Other Stuff
+
+- **Tab completion** for commands (builtins + everything on PATH)
+- **Persistent history** across sessions
+- **Quote handling** — single quotes are literal, double quotes expand variables
+- **Cross-platform** — works on Windows, Linux, macOS
+
+## Project Structure
 
 ```
 oxide-shell/
 ├── src/
-│   ├── main.rs                      # Entry point
-│   ├── lib.rs                       # Library root
+│   ├── main.rs
+│   ├── lib.rs
 │   └── shell/
-│       ├── mod.rs                   # Shell REPL and tab completion
-│       ├── parser.rs                # Command parsing with quote handling
+│       ├── mod.rs                  # REPL loop, tab completion, heredoc/control flow collection
+│       ├── parser.rs               # Tokenizer, variable/arithmetic/glob/brace/tilde expansion
 │       └── commands/
-│           ├── mod.rs               # Command trait definition
-│           ├── map_commands.rs      # Command registry/dispatcher
-│           ├── echo_command.rs      # Echo builtin
-│           ├── type_command.rs      # Type builtin
-│           ├── pwd_command.rs       # PWD builtin
-│           ├── cd_command.rs        # CD builtin
-│           ├── cat_command.rs       # Cat builtin
-│           ├── ls_command.rs        # LS builtin
-│           └── external_command.rs  # External command execution
-├── Cargo.toml                       # Rust dependencies
-├── README.md                        # This file
-└── your_program.sh                  # Shell startup script
+│           ├── mod.rs              # Command enum, dispatch, aliases, heredoc execution
+│           ├── map_commands.rs     # Builtin + PATH command discovery
+│           ├── echo_command.rs     # echo with redirection
+│           ├── cat_command.rs      # cat with redirection
+│           ├── cd_command.rs       # cd
+│           ├── pwd_command.rs      # pwd
+│           ├── ls_command.rs       # ls
+│           ├── type_command.rs     # type
+│           ├── export_command.rs   # export
+│           ├── unset_command.rs    # unset
+│           ├── external_command.rs # External command execution with redirection
+│           ├── pipeline.rs         # Pipe execution
+│           ├── chain.rs            # &&, ||, ; chaining
+│           └── control_flow.rs     # if/for/while/until/case execution
+├── Cargo.toml
+└── README.md
 ```
 
-## 🏗️ Architecture
+## Not Yet Implemented
 
-### Command System
+- Background jobs (`&`, `fg`, `bg`, `jobs`)
+- Signal handling (`Ctrl+Z` to suspend)
+- Shell scripting (running `.sh` files)
+- Functions
+- `source` / `.` command
+- Prompt customization
 
-The shell uses a **trait-based architecture** for extensibility:
+## Dependencies
 
-```rust
-pub trait Command {
-    fn execute(&self, args: &[String]) -> Result<()>;
-}
-```
+| Crate | Purpose |
+|-------|---------|
+| [rustyline](https://crates.io/crates/rustyline) | Line editing, history, tab completion |
+| [glob](https://crates.io/crates/glob) | Wildcard pattern matching |
+| [os_pipe](https://crates.io/crates/os_pipe) | Cross-platform pipe support |
+| [once_cell](https://crates.io/crates/once_cell) | Lazy statics |
+| [anyhow](https://crates.io/crates/anyhow) / [thiserror](https://crates.io/crates/thiserror) | Error handling |
 
-Each command is implemented as a separate module and registered in the command dispatcher:
+## Contributing
 
-```rust
-// Command registry using HashMap for O(1) lookup
-let mut commands = HashMap::new();
-commands.insert("echo", Box::new(EchoCommand) as Box<dyn Command>);
-commands.insert("pwd", Box::new(PwdCommand) as Box<dyn Command>);
-// ... more commands
-```
+PRs welcome. Fork it, branch it, open a PR.
 
-### Parser
+## Author
 
-The parser handles:
-- **Whitespace tokenization** with quote preservation
-- **Quote parsing** (single and double quotes)
-- **Escape sequences** in double quotes (`\n`, `\t`, `\\`, `\"`)
-- **Redirection operators** (`>`, `>>`, `2>`, `2>>`)
-
-### Tab Completion
-
-Custom completer integrates with `rustyline`:
-- Completes builtin command names
-- Searches PATH for external executables
-- Caches results for performance
-
-## 🧪 Testing
-
-Run the test suite:
-
-```bash
-cargo test
-```
-
-Interactive testing:
-
-```bash
-# Test builtin commands
-$ cargo run
-$ echo Hello
-$ pwd
-$ cd /tmp
-$ ls
-$ exit
-
-# Test I/O redirection
-$ echo "Test" > output.txt
-$ cat output.txt
-$ cat nonexistent.txt 2> errors.txt
-```
-
-## 📦 Dependencies
-
-| Crate | Version | Purpose |
-|-------|---------|---------|
-| [rustyline](https://crates.io/crates/rustyline) | 14.0.0 | Line editing, history, tab completion |
-| [anyhow](https://crates.io/crates/anyhow) | 1.0.68 | Error handling |
-| [thiserror](https://crates.io/crates/thiserror) | 1.0.38 | Custom error types |
-| [bytes](https://crates.io/crates/bytes) | 1.3.0 | Buffer management |
-| [once_cell](https://crates.io/crates/once_cell) | 1.19.0 | Lazy static initialization |
-
-## 📦 Binary Size & Performance
-
-- **Binary size**: ~2-3 MB (release build)
-- **Startup time**: < 50ms
-- **Memory footprint**: ~5-10 MB
-- **Command execution**: Near-native speed
-- **Platform**: Windows, Linux, macOS
-
-## 🎯 Implementation Details
-
-### Command Discovery
-
-External commands are discovered by:
-1. Searching PATH environment variable
-2. Caching results in a HashMap
-3. Platform-specific executable detection (`.exe` on Windows)
-
-### I/O Redirection
-
-Redirection is handled by:
-1. Parsing redirection operators during command parsing
-2. Opening files with appropriate modes (write/append)
-3. Redirecting stdout/stderr using `std::process::Command` configuration
-
-### Error Handling
-
-The shell uses Rust's `Result` type with custom error types:
-- **ParseError** - Command parsing failures
-- **CommandError** - Command execution failures
-- **IOError** - File I/O failures
-
-## 🚧 Limitations & Future Work
-
-### Current Limitations
-- ❌ No pipe support (`|`)
-- ❌ No environment variable expansion (`$VAR`)
-- ❌ No background jobs (`&`)
-- ❌ No command substitution (`` `cmd` `` or `$(cmd)`)
-- ❌ No glob expansion (`*.txt`)
-
-### Planned Features
-- [ ] Pipe operator (`|`) for command chaining
-- [ ] Environment variable management (`export`, `unset`)
-- [ ] Background job control (`&`, `fg`, `bg`, `jobs`)
-- [ ] Command substitution
-- [ ] Glob pattern matching
-- [ ] Aliases
-- [ ] Shell scripts support (`.sh` file execution)
-- [ ] Signal handling (Ctrl+C, Ctrl+Z)
-
-## 🤝 Contributing
-
-Contributions are welcome! Here's how you can help:
-
-1. **Fork the repository**
-2. **Create a feature branch** (`git checkout -b feature/amazing-feature`)
-3. **Commit your changes** (`git commit -m 'Add amazing feature'`)
-4. **Push to the branch** (`git push origin feature/amazing-feature`)
-5. **Open a Pull Request**
-
-Please ensure your code:
-- Follows Rust naming conventions
-- Includes appropriate error handling
-- Has tests for new features
-- Updates documentation as needed
-
-<!-- 
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details. -->
-
-## 👨‍💻 Author
-
-**Yeabsira Shimelis**
-
-Built with 🦀 Rust
-
-## 🙏 Acknowledgments
-
-- [CodeCrafters](https://codecrafters.io) for the excellent challenge
-- The Rust community for amazing crates and documentation
-- POSIX shell specification for design guidance
-
-## 📚 Resources
-
-- [POSIX Shell Specification](https://pubs.opengroup.org/onlinepubs/9699919799/utilities/V3_chap02.html)
-- [Rust Book](https://doc.rust-lang.org/book/)
-- [rustyline Documentation](https://docs.rs/rustyline/)
-
-## 💬 Support
-
-If you have questions or run into issues:
-- Open an issue on GitHub
-- Check existing issues for solutions
-- Read the POSIX shell documentation
-
----
-
-**Made with effort and 🦀 Rust**
-
-⭐ Star this repo if you found it helpful!
+**Yeabsira Shimelis** — built with Rust
