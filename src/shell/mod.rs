@@ -129,7 +129,19 @@ impl Shell {
         loop {
             let current_dir =
                 env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("<unknown>"));
-            let prompt = format!("[🦀 yeabshell {}]$ ", current_dir.display());
+            let display_dir = if let Ok(home) = env::var("HOME").or_else(|_| env::var("USERPROFILE")) {
+                let dir_str = current_dir.display().to_string();
+                if dir_str == home {
+                    "~".to_string()
+                } else if let Some(rest) = dir_str.strip_prefix(&home) {
+                    format!("~{}", rest)
+                } else {
+                    dir_str
+                }
+            } else {
+                current_dir.display().to_string()
+            };
+            let prompt = format!("oxide {} $ ", display_dir);
             let readline = rl.readline(&prompt);
 
             match readline {
